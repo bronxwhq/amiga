@@ -9,8 +9,10 @@ You can find some of our demo/intro source codes + binary executables :)
 
 ### Change Log
 
-* **2015-01-15**  
-Ghost/Bronx’s awesome `init.s` kind of bootstrap code added.
+**2015-01-15**
+
+* Ghost/Bronx’s awesome `init.s` kind of bootstrap code added.
+* Darklord’s **BOB INTRO** added!
 
 [01]: http://bronxwhq.org
 [02]: https://twitter.com/_BRONX_

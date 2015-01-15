@@ -1,6 +1,6 @@
 # Intro
 
-![Screenshot](https://raw.githubusercontent.com/bronxwhq/amiga/master/screenshot.png)
+![Screenshot](https://raw.githubusercontent.com/bronxwhq/amiga/master/darklord_bob_intro/screenshot.png)
 
 ## Original Turkish Text
 
