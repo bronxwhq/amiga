@@ -1,0 +1,9 @@
+o:
+.loop:	btst	#0,$bfec01
+	bne	.loop
+	clr.l	d0
+	move.b	$bfec01,d0
+lop:	cmp.b	$bfec01,d0
+	beq	lop
+	move.b	$bfec01,d0
+	rts

@@ -1,0 +1,27 @@
+;EQUATES
+dmacon =$dff002
+bltcon0=$dff040
+bltcon1=$dff042
+bltcpt =$dff048
+bltbpt =$dff04c
+bltapt =$dff050
+bltdpt =$dff054
+bltcmod=$dff060
+bltbmod=$dff062
+bltamod=$dff064
+bltdmod=$dff066
+bltsize=$dff058
+bltafwm=$dff044
+bltalwm=$dff046
+aud2ptr=$b0
+aud2len=$b4
+aud2per=$b6
+aud2vol=$b8
+aud3ptr=$c0
+aud3len=$c4
+aud3per=$c6
+aud3vol=$c8
+aud4ptr=$d0
+aud4len=$d4
+aud4per=$d6
+aud4vol=$d8

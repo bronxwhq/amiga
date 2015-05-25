@@ -1,0 +1,252 @@
+mousemaxx	=288
+mousemaxy	=232
+	section	a,code
+o:
+	movem.l	d0-d6/a0-a6,-(a7)
+	move.l	#scr,d0
+	move.w	d0,planeptr+6
+	swap	d0
+	move.w	d0,planeptr+2
+
+	move.l	4,a6
+	jsr	-132(a6)
+	bsr	init_rutin
+	bsr.w	StartCopper
+*______________________________
+main:
+	bsr	routine
+	cmp.b	#$4f,$bfec01
+	bne	w_left
+	bsr	shower
+	bsr	init_rutin
+w_left:
+	cmp.b	#$51,$bfec01
+	bne.s	main
+*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+ex:
+	bsr.w	StopCopper
+	move.l	4,a6
+	jsr	-138(a6)
+	moveq	#0,d0
+	move.l	kptr,d7
+	movem.l	(a7)+,d0-d6/a0-a6
+	rts
+pset:
+	move.l	y,d0
+	mulu	#40,d0
+	move.l	x,d1
+	lsr.l	#3,d1
+	add.l	d1,d0
+	move.l	x,d1
+	and.l	#$7,d1
+	move.l	#$80,d2
+	lsr.w	d1,d2
+	lea	scr,a0
+	or.b	d2,0(a0,d0)
+	rts
+preset:
+	move.l	y,d0
+	mulu	#40,d0
+	move.l	x,d1
+	lsr.l	#3,d1
+	add.l	d1,d0
+	move.l	x,d1
+	and.l	#$7,d1
+	move.l	#$7f,d2
+	lsr.w	d1,d2
+	lea	scr,a0
+	and.b	d2,0(a0,d0)
+	rts
+x:	dc.l	0
+y:	dc.l	0
+shower:
+	bsr	ret
+	cmp.l	#0,lenght
+	beq	ret
+	lea	kordata,a5
+	move.l	lenght,d6
+	sub.l	#1,d6
+anim:
+	cmp.b	#$4f,$bfec01
+	beq	ret
+	bsr	main2
+	move.w	(a5)+,d0
+	move.w	(a5)+,d1
+	bsr	setspr
+	dbra	d6,anim
+	bra	shower
+ret:	cmp.b	#$4f,$bfec01
+	beq	ret
+	rts
+StartCopper:
+	lea	$dff000,a5
+	move.w	#$0380,$96(a5)
+	move.l	#NEWCOPPER,$80(a5)
+	clr.w	$8a(a5)
+	move.w	#$83a0,$96(a5)
+	clr.w	$36(a5)			;Clear JOY0DAT
+	rts
+
+StopCopper:
+	lea	$dff000,a5
+	move.w	#$0380,$96(a5)
+	clr.w	$88(a5)
+	move.w	#$8380,$96(a5)
+	rts
+main2:	move.l	#20,d7
+.main:	cmp.b	#0,$dff006
+	bne.s	.main
+	dbra	d7,.main
+	rts
+routine:
+	movem.l	d0-d7/a0-a6,-(a7)
+	bsr	main2
+	bsr	checkmouse
+	btst	#6,$bfe001
+	bne	no_new
+	move.l	kptr,a0
+	cmp.l	#$500,lenght
+	bge	no_new
+	move.l	mousexpos,(a0)+
+	move.l	a0,kptr
+	move.w	mousexpos,x+2
+	move.w	mouseypos,y+2
+	bsr	pset	
+	add.l	#1,lenght
+	bra	exit1
+no_new:	cmp.b	#$4d,$bfec01
+	bne	exit1
+	move.l	kptr,a0
+	cmp.l	#0,lenght
+	beq	exit1
+	move.w	-(a0),y+2
+	move.w	-(a0),x+2
+	move.l	a0,kptr
+	bsr	preset
+	sub.l	#1,lenght
+exit1:	movem.l	(a7)+,d0-d7/a0-a6
+	rts
+
+SpriteHigh	=16
+init_rutin:
+	move.l	#mousespr,d0
+	move.w	d0,mousesprite+6
+	swap	d0
+	move.w	d0,mousesprite+2
+	
+	move.b	$dff00a,oldypos
+	move.b	$dff00b,oldxpos
+	rts
+;  Check Mouse V2.0 by GHOST
+CheckMouse:
+	movem.l	a0-a6/d0-d7,-(sp)
+	clr.w	d0
+	clr.w	d2
+	move.b	$dff00a+1,d0
+	move.b	OldXPos,d2
+	sub.b	d0,d2
+	bpl.s	CM_Right
+	sub.w	#256,d2
+CM_Right:
+	sub.w	d2,MouseXPos
+	move.b	d0,OldXPos
+	clr.w	d0
+	move.b	$dff00a,d0
+	clr.w	d2		
+	move.b	OldYPos,d2	
+	sub.b	d0,d2		
+	bpl.s	CM_Down		
+	sub.w	#256,d2		
+CM_Down:			
+	sub.w	d2,MouseYPos	
+	move.b	d0,OldYPos	
+	move.w	MouseXPos,d0	
+	move.w	MouseYPos,d1	
+	btst	#15,d0		
+	beq.s	CM_x1		
+	clr.w	d0		
+CM_x1:				
+	btst	#15,d1		
+	beq.s	CM_y1		
+	clr.w	d1		
+CM_y1:				
+	cmp.w	#mousemaxx,d0	
+	blt.s	CM_x2		
+	move.w	#mousemaxx,d0	
+CM_x2:				
+	cmp.w	#mousemaxy,d1	
+	blt.s	CM_y2		
+	move.w	#mousemaxy,d1	
+CM_y2:				
+	move.w	d0,MouseXPos	
+	move.w	d1,MouseYPos	
+	bsr	setspr
+	movem.l	(sp)+,a0-a6/d0-d7
+	rts			
+SetSpr:	lea	MouseSpr,a0
+	add.w	#126,d0
+	add.w	#40,d1
+	move.w	d1,d3
+	add.w	#SpriteHigh,d3
+	moveq	#0,d4
+	lsl.w	#8,d1
+	addx.b	d4,d4
+	lsl.w	#8,d3
+	addx.b	d4,d4
+	or.w	d4,d3
+	lsr.w	#1,d0
+	addx.b	d3,d3
+	or.w	d0,d1
+	move.w	d1,(a0)+
+	move.w	d3,(a0)
+	rts
+oldxpos:	dc.w	0
+oldypos:	dc.w	0
+MouseXPos:	dc.w	0	
+MouseYPos:	dc.w	0	
+;-------------------------------
+
+	section	copper,data_c
+MouseSpr:	dc.w	0,0
+		dc.w	%0000000000000000,%0000000000000000
+		dc.w	%0011111111111110,%0000000000000000
+		dc.w	%0011111111111110,%0000000000000000
+		dc.w	%0011111111111100,%0000000000000000
+		dc.w	%0011111111100000,%0000000000000000
+		dc.w	%0011111111110000,%0000000000000000
+		dc.w	%0011111111110000,%0000000000000000
+		dc.w	%0011111111110000,%0000000000000000
+		dc.w	%0011111111100000,%0000000000000000
+		dc.w	%0011111111000000,%0000000000000000
+		dc.w	%0011101110000000,%0000000000000000
+		dc.w	%0011100000000000,%0000000000000000
+		dc.w	%0011100000000000,%0000000000000000
+		dc.w	%0011000000000000,%0000000000000000
+		dc.w	%0000000000000000,%0000000000000000
+		dc.w	%0000000000000000,%0000000000000000
+		dc.w	0,0
+*_____________________________________________________________
+NEWCOPPER:
+MouseSprite:
+	dc.l	$01200000,$01220000,$01240000,$01260000
+	dc.l	$01280000,$012a0000,$012c0000,$012e0000
+	dc.l	$01300000,$01320000,$01340000,$01360000
+	dc.l	$01380000,$013a0000,$013c0000,$013e0000
+
+	dc.w	$008e,$2981,$0090,$29c1,$0092,$0038,$0094,$00d0
+	dc.w	$0102,$0000,$0104,$0000,$0108,$0000,$010a,$0000
+	dc.w	$0100,$0200,$01a2,$0ff0
+PlanePtr:
+	dc.w	$00e0,$0007,$00e2,$0000
+	dc.w	$0100,$1200
+	dc.w	$0180,0000,$0182,$00ff
+	dc.w	$01a0,0000,$01a2,$000f
+	dc.w	$01a4,$0fff,$01a5,$000f
+	dc.l	-2
+*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+scr:		blk.b	$4000,0
+kptr:		dc.l	kordata
+lenght:		dc.w	0
+start:
+		dc.w	0
+kordata:	blk.l	$1000,0

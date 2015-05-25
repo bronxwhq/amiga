@@ -1,0 +1,3127 @@
+	incdir	'gam:macros/'
+	include	custom.i
+SETAIR:	MACRO
+	dc.w	\1
+	dc.l	\2,\3
+	dc.w	\4
+	endm
+SETSEA:	MACRO
+	dc.l	\1,\2
+	dc.w	\3
+	endm
+	section	a,code
+o:
+	move.l	a7,stackbf
+	lea	stack,a7
+	bsr.w	setplane
+	move.l	#231,d0
+	move.l	#scrbuf,d1
+	lea	rplines,a0
+cre2:	move.l	d1,(a0)+
+	add.l	#40*4,d1
+	dbra	d0,cre2
+
+	move.l	4,a6
+	jsr	-132(a6)
+	bsr.w	calc_values
+	bsr.w	pre_st
+	bsr.w	StartCopper
+	bsr.w	startint
+	bsr.w	plane
+re_lopp:
+	move.l	#$ff0,yoffset
+	bsr.w	calc_values
+	bsr.w	pre_st
+	clr.w	bacount
+.loop:
+	bsr.w	press_line
+	add.w	#1,bacount
+	cmp.w	#200,bacount
+	bne.b	.loop
+	bsr.w	repair
+	bsr.w	double_buffer
+	bsr.w	repair
+	bsr.w	double_buffer
+	move.w	#1,intenbl
+start1:
+	bsr.w	wait_wb
+	move.l	#15,herost
+	move.w	#161,herost+4
+	move.w	#210,herost+6
+	bsr.w	sethero
+	bsr.w	joystick
+	move.w	joydat,d0
+	cmp.w	#%0001,d0
+	bne.b	start1
+start3:
+	bsr.w	wait_wb
+	bsr.w	sethero
+	sub.w	#1,herost+6
+	cmp.w	#70,herost+6
+	beq.b	patlaemi
+	bsr.w	joystick
+	move.w	joydat,d0
+	bsr.w	wait_wb
+	cmp.w	#%100,d0
+	bne.b	start3
+start4:
+	move.l	#$5,d0
+.loop:	bsr.w	wait_wb
+	dbf	d0,.loop
+	bsr.w	sethero
+	sub.w	#1,herost+6
+	sub.w	#1,planecount
+	bne.b	start4
+	move.w	#12,planecount
+	add.w	#9,chn2vol
+	sub.l	#1,herost
+	cmp.l	#9,herost
+	beq.w	real_start
+	bra.b	start4
+patlaemi:
+	move.w	#1,intenbl
+	move.w	herost+4,contx
+	move.w	herost+6,conty
+	move.w	#300,herost+6
+	bsr.w	sethero
+	move.w	#5,expco
+patl:
+	bsr.w	wait_wb
+	bsr.w	repair
+	bsr.b	expresso
+	bsr.w	double_buffer
+	move.l	#60000,d7
+.loop:	dbra	d7,.loop
+	sub.w	#1,expco
+	cmp.w	#-1,expco
+	bne.b	patl
+	bra.w	re_lopp
+stackbf:dc.l	0
+contx:	dc.w	0
+conty:	dc.w	0
+expco:	dc.w	6
+expresso:
+	lea	expvenob.blt+2,a0
+	lea	expvenob.mask+2,a1
+	clr.l	d1
+	move.w	expco,d1
+	move.l	d1,d2
+	mulu	#6*32*4,d1
+	mulu	#6*32,d2
+	lea	0(a1,d2),a1
+	lea	0(a0,d1),a0
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.w	conty,d1
+	mulu	#40*4,d1
+	move.w	contx,d2
+	move.w	d2,d3
+	lsr.w	#3,d2
+	and.b	#$fe,d2
+	add.w	d2,d1
+	move.l	workplane,a2
+	add.l	d1,a2
+
+	lsl.w	#8,d3
+	lsl.w	#4,d3
+	bsr.w	w_blit
+	and.l	#$f000,d3
+	move.w	d3,bltcon1
+	ori.w	#$fca,d3
+	move.w	d3,bltcon0
+	move.l	#-1,bltafwm
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#34+[40*3],bltcmod
+	move.w	#34+[40*3],bltdmod
+	moveq.l	#3,d3
+.loop:
+	bsr.w	w_blit
+	move.l	a1,bltapt
+	move.l	a0,bltbpt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*32]+3,bltsize
+	add.l	#6*32,a0
+	add.l	#40,a2
+	dbra	d3,.loop
+	rts
+smartco:	dc.l	0
+smart:
+	cmp.l	#0,smartco
+	beq.b	conti
+	sub.l	#1,smartco
+	move.l	smartco,d0
+	and.w	#$f,d0
+	move.w	d0,mavi
+	rts
+conti:
+	move.w	#$23,mavi
+	cmp.l	#7,herost
+	blt	ret
+	cmp.b	#$7f,$bfec01
+	bne.w	ret
+	cmp.l	#0,bomb
+	beq.w	ret
+	sub.l	#1,bomb
+	lea	enemy_list,a0
+	moveq.l	#enm-1,d0
+smartair:
+	cmp.l	#6,(a0)
+	ble.b	.next
+	move.l	#6,(a0)
+.next:	lea	sizeofel(a0),a0
+	dbf	d0,smartair
+
+	lea	batterylist,a0
+	moveq.l	#batterynum-1,d0
+smartbat:
+	cmp.l	#6,(a0)
+	ble.b	.next
+	move.l	#6,(a0)
+.next:	lea	sizeofbat(a0),a0
+	dbf	d0,smartbat
+
+	lea	sea_list,a0
+	moveq.l	#seaenm-1,d0
+smartsea:
+	cmp.l	#6,(a0)
+	ble.b	.next
+	move.l	#6,(a0)
+.next:	lea	sizeofel(a0),a0
+	dbf	d0,smartsea
+
+	lea	fire_list,a0
+	moveq.l	#firenum-1,d0
+smartfire:
+	clr.l	fdx(a0)
+	clr.l	firex(a0)
+	lea	sizeoffr(a0),a0
+	dbf	d0,smartfire
+	move.l	#12,smartco
+	bsr.w	explode1
+	bsr.w	explode2
+	rts
+real_start:
+*_____________________________________________________________
+	move.w	#0,intenbl
+	move.w	#$24,sprcon
+	clr.w	joydat
+main:
+	cmp.b	#200,$dff006
+	bne.s	main
+	clr.l	vb
+	bsr.w	smart
+	bchg	#0,animswitch
+	bsr.b	reality
+	bsr.w	itemcon
+	bsr.w	calc_values
+	bsr.w	pre_st
+w_left:	btst	#6,$bfe001
+	bne.s	main
+*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+exitprg:bsr.w	stopint
+	bsr.w	StopCopper
+	move.l	4,a6
+	jsr	-138(a6)
+stex:	move.l	stackbf,a7
+	moveq	#0,d0
+	rts
+bacount:	dc.w	0
+planecount:	dc.w	12
+reality:
+	bsr.w	strike_per
+	bsr.w	waspcontrol
+	bsr.w	double_buffer
+	bsr.w	press_line
+	bsr.w	repair
+	bsr.w	rocket_col
+	bsr.w	hero_con
+	bsr.w	activeallbatterys
+	bsr.w	conaboat
+	bsr.w	sea_enemy
+	bsr.w	setexp
+	bsr.w	setastrike
+	bsr.w	moveafire
+	bsr.w	set_enemy
+	bsr.w	move_rockets
+	move.w	joydat,d0
+	btst	#4,d0
+	beq.b	no_fire
+	bsr.w	set_a_rocket
+no_fire:
+	rts
+intenbl:	dc.w	0
+StartCopper:
+	lea	$dff000,a5
+	move.w	#$0380,$96(a5)
+	move.l	#NEWCOPPER,$80(a5)
+	clr.w	$8a(a5)
+	move.w	#$83af,$96(a5)
+;	clr.w	$36(a5)			;Clear JOY0DAT
+	rts
+StopCopper:
+	lea	$dff000,a5
+	move.w	#$0380,$96(a5)
+	clr.w	$88(a5)
+	move.w	#$8380,$96(a5)
+	rts
+SETPLANE:
+	lea	scr1cop,a0
+	move.l	#scr1+[40*4*32],d0
+	bsr.b	setpl
+
+	lea	scr2cop,a0
+	move.l	#scr2+[40*4*32],d0
+	bsr.b	setpl
+
+	lea	planeptr,a0
+	move.l	#scr1+[40*4*32],d0
+	bsr.b	setpl
+	lea	planeptr2,a0
+	move.l	#text.bm,d0
+	move.l	d0,d1
+	swap	d1
+	move.w	d1,2(a0)
+	move.w	d0,6(a0)
+	rts
+setpl:
+	move.l	#3,d2
+.loop:
+	move.l	d0,d1
+	swap	d1
+	move.w	d1,2(a0)
+	move.w	d0,6(a0)
+	add.l	#8,a0
+	add.l	#40,d0
+	dbf	d2,.loop
+	rts
+wait_wb:
+	cmp.b	#200,$dff006
+	bne.s	wait_wb
+	rts
+DOUBLE_BUFFER:
+	cmp.l	#scr1,workplane
+	bne.b	show_scr2
+	move.l	#7,d0
+	lea	scr1cop,a0
+	lea	planeptr,a1
+.loop:
+	move.l	(a0)+,(a1)+
+	dbra	d0,.loop
+	move.l	#scr2,workplane
+	rts
+show_scr2:	
+	move.l	#7,d0
+	lea	scr2cop,a0
+	lea	planeptr,a1
+.loop1:
+	move.l	(a0)+,(a1)+
+	dbra	d0,.loop1
+	move.l	#scr1,workplane
+	rts
+;_____________________________________________________________________
+StartInt:
+	bsr.w	mt_init
+	lea	$dff000,a5
+	move.w	$1c(a5),d0
+	bset	#15,d0
+	move.w	d0,Interrupts
+	move.w	#$3fff,$9a(a5)
+	move.l	$6c.w,Level3Int
+	lea	SOFTINT(pc),a0
+	move.l	a0,$6c.w
+;	or.w	#$e02c,d0
+	move.w	d0,$9a(a5)
+	rts
+StopInt:
+	lea	$dff000,a5
+	move.w	#$3fff,$9a(a5)
+	move.l	Level3Int(pc),$6c.w
+	move.w	Interrupts(pc),$9a(a5)
+	bsr.w	mt_end
+	rts
+SOFTINT:
+	movem.l	d0-d7/a0-a6,-(a7)
+	lea	$dff000,a5
+	btst	#5,$1e+1(A5)		;Eger VB baslamissa
+	beq.s	Exit_Int		;clr vb
+	move.w	#$0020,$9c(a5)		;
+;	­­­­­­­­­­­­­­­­
+;	RUTIN BURAYA
+	move.b	#1,vb
+	bsr.b	chan_operations
+	bsr	show_must_go_on
+	cmp.w	#0,intenbl
+	bne.b	no_act
+	cmp.l	#6,herost
+	ble	no_act1
+	bsr.w	set_xy
+	bsr.w	sethero
+no_act1:bsr.w	move_items
+no_act:
+	bsr.w	mt_music
+	btst	#6,$bfe001
+	bne.b	.no_op
+	bsr.b	stopint
+.no_op:	
+;	­­­­­­­­­­­­­­­­
+Exit_Int:
+	movem.l	(a7)+,d0-d7/a0-a6
+	rte
+chan_operations:
+	move.w	chn2per,aud2per+$dff000
+	move.w	chn2vol,aud2vol+$dff000
+chan_2:	cmp.w	#-1,chan2_timer
+	beq.b	chan_3
+	move.w	#$f,$dff180
+	cmp.w	#0,chan2_timer
+	bne.b	chnsub2
+	move.w	#%0010,$dff096
+chnsub2:sub.w	#1,chan2_timer
+
+chan_3:	cmp.w	#-1,chan3_timer
+	beq.b	chan_4
+	cmp.w	#0,chan3_timer
+	bne.b	chnsub3
+	move.w	#%0100,$dff096
+chnsub3:sub.w	#1,chan3_timer
+
+chan_4:	cmp.w	#-1,chan4_timer
+	beq.b	chnexit
+	cmp.w	#0,chan4_timer
+	bne.b	chnsub4
+	move.w	#%1000,$dff096
+chnsub4:sub.w	#1,chan4_timer
+chnexit:rts
+chan2_timer:	dc.w	-1
+chan3_timer:	dc.w	-1
+chan4_timer:	dc.w	-1
+Interrupts:	dc.w	0
+Level3Int:	dc.l	0
+;¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+vb:	dc.l	0
+strike_per:
+	move.w	joydat,d0
+	and.l	#%1011,d0
+	cmp.w	#$9,d0
+	beq.b	perarttir
+	cmp.w	#$3,d0
+	beq.b	perarttir
+	cmp.w	#600,chn2per
+	beq.w	ret
+	add.w	#4,chn2per
+	rts
+perarttir:
+	cmp.w	#400,chn2per
+	beq.w	ret
+	sub.w	#4,chn2per
+	rts
+explode1:
+	move.l	a5,depoa5
+	lea	$dff000,a5
+	move.w	#%1000,$96(a5)
+	move.l	mt_samplestarts,aud4ptr(a5)
+	move.w	#6654/2,aud4len(a5)
+	move.w	#450,aud4per(a5)
+	move.w	#36,chan4_timer
+	btst	#0,animswitch
+	beq.b	.next
+	move.w	#520,aud4per(a5)
+	move.w	#40,chan4_timer
+.next:	move.w	#64,aud4vol(a5)
+	move.w	#$8008,$96(a5)
+	move.l	depoa5,a5
+	rts
+explode2:
+	move.l	a5,depoa5
+	lea	$dff000,a5
+	move.w	#%100,$96(a5)
+	move.l	mt_samplestarts+[2*4],aud3ptr(a5)
+	move.w	#7322/2,aud3len(a5)
+	move.w	#700,aud3per(a5)
+	move.w	#50,chan3_timer
+	move.w	#64,aud3vol(a5)
+	move.w	#$8004,$96(a5)
+	move.l	depoa5,a5
+	rts
+rockext:
+	move.l	a5,depoa5
+	lea	$dff000,a5
+	move.w	#%0100,$96(a5)
+	move.l	mt_samplestarts+[3*4],aud3ptr(a5)
+	move.w	#6620/2,aud3len(a5)
+	move.w	#460,aud3per(a5)
+	move.w	#6,chan3_timer
+.next:	move.w	#50,aud3vol(a5)
+	move.w	#$8004,$96(a5)
+	move.l	depoa5,a5
+	rts
+chn2per:dc.w	600
+chn2vol:dc.w	10
+plane:
+	move.l	a5,depoa5
+	lea	$dff000,a5
+	move.w	#%0010,$96(a5)
+	bsr.w	wait_wb
+	move.l	mt_samplestarts+[1*4],aud2ptr(a5)
+	move.w	#10214/2,aud2len(a5)
+	move.w	#600,aud2per(a5)
+	move.w	#600,chn2per
+	move.w	#-1,chan2_timer
+	move.w	chn2vol,aud2vol(a5)
+	move.w	#$8002,$96(a5)
+	move.l	depoa5,a5
+	rts
+obje:
+	cmp.w	#1,intenbl
+	beq	ret
+	move.l	a5,depoa5
+	lea	$dff000,a5
+	move.w	#%0100,$96(a5)
+	bsr.w	wait_wb
+	move.l	mt_samplestarts+[5*4],aud3ptr(a5)
+	move.w	#66/2,aud3len(a5)
+	move.w	#500,aud3per(a5)
+	move.w	#-1,chan3_timer
+	move.w	#4,chan3_timer
+	move.w	#64,aud3vol(a5)
+	move.w	#$8004,$96(a5)
+	move.l	depoa5,a5
+	rts
+depoa5:	dc.l	0
+DMAWait = 300 ; Set this as low as possible without losing low notes.
+
+n_note		EQU	0  ; W
+n_cmd		EQU	2  ; W
+n_cmdlo		EQU	3  ; B
+n_start		EQU	4  ; L
+n_length	EQU	8  ; W
+n_loopstart	EQU	10 ; L
+n_replen	EQU	14 ; W
+n_period	EQU	16 ; W
+n_finetune	EQU	18 ; B
+n_volume	EQU	19 ; B
+n_dmabit	EQU	20 ; W
+n_toneportdirec	EQU	22 ; B
+n_toneportspeed	EQU	23 ; B
+n_wantedperiod	EQU	24 ; W
+n_vibratocmd	EQU	26 ; B
+n_vibratopos	EQU	27 ; B
+n_tremolocmd	EQU	28 ; B
+n_tremolopos	EQU	29 ; B
+n_wavecontrol	EQU	30 ; B
+n_glissfunk	EQU	31 ; B
+n_sampleoffset	EQU	32 ; B
+n_pattpos	EQU	33 ; B
+n_loopcount	EQU	34 ; B
+n_funkoffset	EQU	35 ; B
+n_wavestart	EQU	36 ; L
+n_reallength	EQU	40 ; W
+
+mt_init	LEA	mt_data,A0
+	MOVE.L	A0,mt_SongDataPtr
+	MOVE.L	A0,A1
+	LEA	952(A1),A1
+	MOVEQ	#127,D0
+	MOVEQ	#0,D1
+mtloop	MOVE.L	D1,D2
+	SUBQ.W	#1,D0
+mtloop2	MOVE.B	(A1)+,D1
+	CMP.B	D2,D1
+	BGT.S	mtloop
+	DBRA	D0,mtloop2
+	ADDQ.B	#1,D2
+			
+	LEA	mt_SampleStarts(PC),A1
+	ASL.L	#8,D2
+	ASL.L	#2,D2
+	ADD.L	#1084,D2
+	ADD.L	A0,D2
+	MOVE.L	D2,A2
+	MOVEQ	#30,D0
+mtloop3	CLR.L	(A2)
+	MOVE.L	A2,(A1)+
+	MOVEQ	#0,D1
+	MOVE.W	42(A0),D1
+	ASL.L	#1,D1
+	ADD.L	D1,A2
+	ADD.L	#30,A0
+	DBRA	D0,mtloop3
+
+	OR.B	#2,$BFE001
+	MOVE.B	#6,mt_speed
+	CLR.B	mt_counter
+	CLR.B	mt_SongPos
+	CLR.W	mt_PatternPos
+mt_end	CLR.W	$DFF0A8
+	CLR.W	$DFF0B8
+	CLR.W	$DFF0C8
+	CLR.W	$DFF0D8
+	MOVE.W	#$F,$DFF096
+	RTS
+
+mt_music
+	MOVEM.L	D0-D4/A0-A6,-(a7)
+	ADDQ.B	#1,mt_counter
+	MOVE.B	mt_counter(PC),D0
+	CMP.B	mt_speed(PC),D0
+	BLO.S	mt_NoNewNote
+	CLR.B	mt_counter
+	TST.B	mt_PattDelTime2
+	BEQ.S	mt_GetNewNote
+	BSR.S	mt_NoNewAllChannels
+	BRA.W	mt_dskip
+
+mt_NoNewNote
+	BSR.S	mt_NoNewAllChannels
+	BRA.W	mt_NoNewPosYet
+
+mt_NoNewAllChannels
+	LEA	$DFF0A0,A5
+	LEA	mt_chan1temp(PC),A6
+	BRA.W	mt_CheckEfx
+mt_GetNewNote
+	MOVE.L	mt_SongDataPtr(PC),A0
+	LEA	12(A0),A3
+	LEA	952(A0),A2	;pattpo
+	LEA	1084(A0),A0	;patterndata
+	MOVEQ	#0,D0
+	MOVEQ	#0,D1
+	MOVE.B	mt_SongPos(PC),D0
+	MOVE.B	(A2,D0.W),D1
+	ASL.L	#8,D1
+	ASL.L	#2,D1
+	ADD.W	mt_PatternPos(PC),D1
+	CLR.W	mt_DMACONtemp
+
+	LEA	$DFF0A0,A5
+	LEA	mt_chan1temp(PC),A6
+	BSR.S	mt_PlayVoice
+	BRA.W	mt_SetDMA
+
+mt_PlayVoice
+	TST.L	(A6)
+	BNE.S	mt_plvskip
+	BSR.W	mt_PerNop
+mt_plvskip
+	MOVE.L	(A0,D1.L),(A6)
+	ADDQ.L	#4,D1
+	MOVEQ	#0,D2
+	MOVE.B	n_cmd(A6),D2
+	AND.B	#$F0,D2
+	LSR.B	#4,D2
+	MOVE.B	(A6),D0
+	AND.B	#$F0,D0
+	OR.B	D0,D2
+	TST.B	D2
+	BEQ.W	mt_SetRegs
+	MOVEQ	#0,D3
+	LEA	mt_SampleStarts(PC),A1
+	MOVE	D2,D4
+	SUBQ.L	#1,D2
+	ASL.L	#2,D2
+	MULU	#30,D4
+	MOVE.L	(A1,D2.L),n_start(A6)
+	MOVE.W	(A3,D4.L),n_length(A6)
+	MOVE.W	(A3,D4.L),n_reallength(A6)
+	MOVE.B	2(A3,D4.L),n_finetune(A6)
+	MOVE.B	3(A3,D4.L),n_volume(A6)
+	MOVE.W	4(A3,D4.L),D3 ; Get repeat
+	TST.W	D3
+	BEQ.S	mt_NoLoop
+	MOVE.L	n_start(A6),D2	; Get start
+	ASL.W	#1,D3
+	ADD.L	D3,D2		; Add repeat
+	MOVE.L	D2,n_loopstart(A6)
+	MOVE.L	D2,n_wavestart(A6)
+	MOVE.W	4(A3,D4.L),D0	; Get repeat
+	ADD.W	6(A3,D4.L),D0	; Add replen
+	MOVE.W	D0,n_length(A6)
+	MOVE.W	6(A3,D4.L),n_replen(A6)	; Save replen
+	MOVEQ	#0,D0
+	MOVE.B	n_volume(A6),D0
+	MOVE.W	D0,8(A5)	; Set volume
+	BRA.S	mt_SetRegs
+
+mt_NoLoop
+	MOVE.L	n_start(A6),D2
+	ADD.L	D3,D2
+	MOVE.L	D2,n_loopstart(A6)
+	MOVE.L	D2,n_wavestart(A6)
+	MOVE.W	6(A3,D4.L),n_replen(A6)	; Save replen
+	MOVEQ	#0,D0
+	MOVE.B	n_volume(A6),D0
+	MOVE.W	D0,8(A5)	; Set volume
+mt_SetRegs
+	MOVE.W	(A6),D0
+	AND.W	#$0FFF,D0
+	BEQ.W	mt_CheckMoreEfx	; If no note
+	MOVE.W	2(A6),D0
+	AND.W	#$0FF0,D0
+	CMP.W	#$0E50,D0
+	BEQ.S	mt_DoSetFineTune
+	MOVE.B	2(A6),D0
+	AND.B	#$0F,D0
+	CMP.B	#3,D0	; TonePortamento
+	BEQ.S	mt_ChkTonePorta
+	CMP.B	#5,D0
+	BEQ.S	mt_ChkTonePorta
+	CMP.B	#9,D0	; Sample Offset
+	BNE.S	mt_SetPeriod
+	BSR.W	mt_CheckMoreEfx
+	BRA.S	mt_SetPeriod
+
+mt_DoSetFineTune
+	BSR.W	mt_SetFineTune
+	BRA.S	mt_SetPeriod
+
+mt_ChkTonePorta
+	BSR.W	mt_SetTonePorta
+	BRA.W	mt_CheckMoreEfx
+
+mt_SetPeriod
+	MOVEM.L	D0-D1/A0-A1,-(a7)
+	MOVE.W	(A6),D1
+	AND.W	#$0FFF,D1
+	LEA	mt_PeriodTable(PC),A1
+	MOVEQ	#0,D0
+	MOVEQ	#36,D7
+mt_ftuloop
+	CMP.W	(A1,D0.W),D1
+	BHS.S	mt_ftufound
+	ADDQ.L	#2,D0
+	DBRA	D7,mt_ftuloop
+mt_ftufound
+	MOVEQ	#0,D1
+	MOVE.B	n_finetune(A6),D1
+	MULU	#36*2,D1
+	ADD.L	D1,A1
+	MOVE.W	(A1,D0.W),n_period(A6)
+	MOVEM.L	(a7)+,D0-D1/A0-A1
+
+	MOVE.W	2(A6),D0
+	AND.W	#$0FF0,D0
+	CMP.W	#$0ED0,D0 ; Notedelay
+	BEQ.W	mt_CheckMoreEfx
+
+	MOVE.W	n_dmabit(A6),$DFF096
+	BTST	#2,n_wavecontrol(A6)
+	BNE.S	mt_vibnoc
+	CLR.B	n_vibratopos(A6)
+mt_vibnoc
+	BTST	#6,n_wavecontrol(A6)
+	BNE.S	mt_trenoc
+	CLR.B	n_tremolopos(A6)
+mt_trenoc
+	MOVE.L	n_start(A6),(A5)	; Set start
+	MOVE.W	n_length(A6),4(A5)	; Set length
+	MOVE.W	n_period(A6),D0
+	MOVE.W	D0,6(A5)		; Set period
+	MOVE.W	n_dmabit(A6),D0
+	OR.W	D0,mt_DMACONtemp
+	BRA.W	mt_CheckMoreEfx
+ 
+mt_SetDMA
+	MOVE.W	#300,D0
+mt_WaitDMA
+	DBRA	D0,mt_WaitDMA
+	MOVE.W	mt_DMACONtemp(PC),D0
+	OR.W	#$8000,D0
+	MOVE.W	D0,$DFF096
+	MOVE.W	#300,D0
+mt_WaitDMA2
+	DBRA	D0,mt_WaitDMA2
+
+	LEA	$DFF000,A5
+	LEA	mt_chan1temp(PC),A6
+	MOVE.L	n_loopstart(A6),$A0(A5)
+	MOVE.W	n_replen(A6),$A4(A5)
+
+mt_dskip
+	ADD.W	#16,mt_PatternPos
+	MOVE.B	mt_PattDelTime,D0
+	BEQ.S	mt_dskc
+	MOVE.B	D0,mt_PattDelTime2
+	CLR.B	mt_PattDelTime
+mt_dskc	TST.B	mt_PattDelTime2
+	BEQ.S	mt_dska
+	SUBQ.B	#1,mt_PattDelTime2
+	BEQ.S	mt_dska
+	SUB.W	#16,mt_PatternPos
+mt_dska	TST.B	mt_PBreakFlag
+	BEQ.S	mt_nnpysk
+	SF	mt_PBreakFlag
+	MOVEQ	#0,D0
+	MOVE.B	mt_PBreakPos(PC),D0
+	CLR.B	mt_PBreakPos
+	LSL.W	#4,D0
+	MOVE.W	D0,mt_PatternPos
+mt_nnpysk
+	CMP.W	#1024,mt_PatternPos
+	BLO.S	mt_NoNewPosYet
+mt_NextPosition	
+	MOVEQ	#0,D0
+	MOVE.B	mt_PBreakPos(PC),D0
+	LSL.W	#4,D0
+	MOVE.W	D0,mt_PatternPos
+	CLR.B	mt_PBreakPos
+	CLR.B	mt_PosJumpFlag
+	ADDQ.B	#1,mt_SongPos
+	AND.B	#$7F,mt_SongPos
+	MOVE.B	mt_SongPos(PC),D1
+	MOVE.L	mt_SongDataPtr(PC),A0
+	CMP.B	950(A0),D1
+	BLO.S	mt_NoNewPosYet
+	CLR.B	mt_SongPos
+mt_NoNewPosYet	
+	TST.B	mt_PosJumpFlag
+	BNE.S	mt_NextPosition
+	MOVEM.L	(a7)+,D0-D4/A0-A6
+	RTS
+
+mt_CheckEfx
+	BSR.W	mt_UpdateFunk
+	MOVE.W	n_cmd(A6),D0
+	AND.W	#$0FFF,D0
+	BEQ.S	mt_PerNop
+	MOVE.B	n_cmd(A6),D0
+	AND.B	#$0F,D0
+	BEQ.S	mt_Arpeggio
+	CMP.B	#1,D0
+	BEQ.W	mt_PortaUp
+	CMP.B	#2,D0
+	BEQ.W	mt_PortaDown
+	CMP.B	#3,D0
+	BEQ.W	mt_TonePortamento
+	CMP.B	#4,D0
+	BEQ.W	mt_Vibrato
+	CMP.B	#5,D0
+	BEQ.W	mt_TonePlusVolSlide
+	CMP.B	#6,D0
+	BEQ.W	mt_VibratoPlusVolSlide
+	CMP.B	#$E,D0
+	BEQ.W	mt_E_Commands
+SetBack	MOVE.W	n_period(A6),6(A5)
+	CMP.B	#7,D0
+	BEQ.W	mt_Tremolo
+	CMP.B	#$A,D0
+	BEQ.W	mt_VolumeSlide
+mt_Return2
+	RTS
+
+mt_PerNop
+	MOVE.W	n_period(A6),6(A5)
+	RTS
+
+mt_Arpeggio
+	MOVEQ	#0,D0
+	MOVE.B	mt_counter(PC),D0
+	DIVS	#3,D0
+	SWAP	D0
+	CMP.W	#0,D0
+	BEQ.S	mt_Arpeggio2
+	CMP.W	#2,D0
+	BEQ.S	mt_Arpeggio1
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	LSR.B	#4,D0
+	BRA.S	mt_Arpeggio3
+
+mt_Arpeggio1
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#15,D0
+	BRA.S	mt_Arpeggio3
+
+mt_Arpeggio2
+	MOVE.W	n_period(A6),D2
+	BRA.S	mt_Arpeggio4
+
+mt_Arpeggio3
+	ASL.W	#1,D0
+	MOVEQ	#0,D1
+	MOVE.B	n_finetune(A6),D1
+	MULU	#36*2,D1
+	LEA	mt_PeriodTable(PC),A0
+	ADD.L	D1,A0
+	MOVEQ	#0,D1
+	MOVE.W	n_period(A6),D1
+	MOVEQ	#36,D7
+mt_arploop
+	MOVE.W	(A0,D0.W),D2
+	CMP.W	(A0),D1
+	BHS.S	mt_Arpeggio4
+	ADDQ.L	#2,A0
+	DBRA	D7,mt_arploop
+	RTS
+
+mt_Arpeggio4
+	MOVE.W	D2,6(A5)
+	RTS
+
+mt_FinePortaUp
+	TST.B	mt_counter
+	BNE.S	mt_Return2
+	MOVE.B	#$0F,mt_LowMask
+mt_PortaUp
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	mt_LowMask(PC),D0
+	MOVE.B	#$FF,mt_LowMask
+	SUB.W	D0,n_period(A6)
+	MOVE.W	n_period(A6),D0
+	AND.W	#$0FFF,D0
+	CMP.W	#113,D0
+	BPL.S	mt_PortaUskip
+	AND.W	#$F000,n_period(A6)
+	OR.W	#113,n_period(A6)
+mt_PortaUskip
+	MOVE.W	n_period(A6),D0
+	AND.W	#$0FFF,D0
+	MOVE.W	D0,6(A5)
+	RTS	
+ 
+mt_FinePortaDown
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVE.B	#$0F,mt_LowMask
+mt_PortaDown
+	CLR.W	D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	mt_LowMask(PC),D0
+	MOVE.B	#$FF,mt_LowMask
+	ADD.W	D0,n_period(A6)
+	MOVE.W	n_period(A6),D0
+	AND.W	#$0FFF,D0
+	CMP.W	#856,D0
+	BMI.S	mt_PortaDskip
+	AND.W	#$F000,n_period(A6)
+	OR.W	#856,n_period(A6)
+mt_PortaDskip
+	MOVE.W	n_period(A6),D0
+	AND.W	#$0FFF,D0
+	MOVE.W	D0,6(A5)
+	RTS
+
+mt_SetTonePorta
+	MOVE.L	A0,-(a7)
+	MOVE.W	(A6),D2
+	AND.W	#$0FFF,D2
+	MOVEQ	#0,D0
+	MOVE.B	n_finetune(A6),D0
+	MULU	#37*2,D0
+	LEA	mt_PeriodTable(PC),A0
+	ADD.L	D0,A0
+	MOVEQ	#0,D0
+mt_StpLoop
+	CMP.W	(A0,D0.W),D2
+	BHS.S	mt_StpFound
+	ADDQ.W	#2,D0
+	CMP.W	#37*2,D0
+	BLO.S	mt_StpLoop
+	MOVEQ	#35*2,D0
+mt_StpFound
+	MOVE.B	n_finetune(A6),D2
+	AND.B	#8,D2
+	BEQ.S	mt_StpGoss
+	TST.W	D0
+	BEQ.S	mt_StpGoss
+	SUBQ.W	#2,D0
+mt_StpGoss
+	MOVE.W	(A0,D0.W),D2
+	MOVE.L	(a7)+,A0
+	MOVE.W	D2,n_wantedperiod(A6)
+	MOVE.W	n_period(A6),D0
+	CLR.B	n_toneportdirec(A6)
+	CMP.W	D0,D2
+	BEQ.S	mt_ClearTonePorta
+	BGE.W	mt_Return2
+	MOVE.B	#1,n_toneportdirec(A6)
+	RTS
+
+mt_ClearTonePorta
+	CLR.W	n_wantedperiod(A6)
+	RTS
+
+mt_TonePortamento
+	MOVE.B	n_cmdlo(A6),D0
+	BEQ.S	mt_TonePortNoChange
+	MOVE.B	D0,n_toneportspeed(A6)
+	CLR.B	n_cmdlo(A6)
+mt_TonePortNoChange
+	TST.W	n_wantedperiod(A6)
+	BEQ.W	mt_Return2
+	MOVEQ	#0,D0
+	MOVE.B	n_toneportspeed(A6),D0
+	TST.B	n_toneportdirec(A6)
+	BNE.S	mt_TonePortaUp
+mt_TonePortaDown
+	ADD.W	D0,n_period(A6)
+	MOVE.W	n_wantedperiod(A6),D0
+	CMP.W	n_period(A6),D0
+	BGT.S	mt_TonePortaSetPer
+	MOVE.W	n_wantedperiod(A6),n_period(A6)
+	CLR.W	n_wantedperiod(A6)
+	BRA.S	mt_TonePortaSetPer
+
+mt_TonePortaUp
+	SUB.W	D0,n_period(A6)
+	MOVE.W	n_wantedperiod(A6),D0
+	CMP.W	n_period(A6),D0
+	BLT.S	mt_TonePortaSetPer
+	MOVE.W	n_wantedperiod(A6),n_period(A6)
+	CLR.W	n_wantedperiod(A6)
+
+mt_TonePortaSetPer
+	MOVE.W	n_period(A6),D2
+	MOVE.B	n_glissfunk(A6),D0
+	AND.B	#$0F,D0
+	BEQ.S	mt_GlissSkip
+	MOVEQ	#0,D0
+	MOVE.B	n_finetune(A6),D0
+	MULU	#36*2,D0
+	LEA	mt_PeriodTable(PC),A0
+	ADD.L	D0,A0
+	MOVEQ	#0,D0
+mt_GlissLoop
+	CMP.W	(A0,D0.W),D2
+	BHS.S	mt_GlissFound
+	ADDQ.W	#2,D0
+	CMP.W	#36*2,D0
+	BLO.S	mt_GlissLoop
+	MOVEQ	#35*2,D0
+mt_GlissFound
+	MOVE.W	(A0,D0.W),D2
+mt_GlissSkip
+	MOVE.W	D2,6(A5) ; Set period
+	RTS
+
+mt_Vibrato
+	MOVE.B	n_cmdlo(A6),D0
+	BEQ.S	mt_Vibrato2
+	MOVE.B	n_vibratocmd(A6),D2
+	AND.B	#$0F,D0
+	BEQ.S	mt_vibskip
+	AND.B	#$F0,D2
+	OR.B	D0,D2
+mt_vibskip
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$F0,D0
+	BEQ.S	mt_vibskip2
+	AND.B	#$0F,D2
+	OR.B	D0,D2
+mt_vibskip2
+	MOVE.B	D2,n_vibratocmd(A6)
+mt_Vibrato2
+	MOVE.B	n_vibratopos(A6),D0
+	LEA	mt_VibratoTable(PC),A4
+	LSR.W	#2,D0
+	AND.W	#$001F,D0
+	MOVEQ	#0,D2
+	MOVE.B	n_wavecontrol(A6),D2
+	AND.B	#$03,D2
+	BEQ.S	mt_vib_sine
+	LSL.B	#3,D0
+	CMP.B	#1,D2
+	BEQ.S	mt_vib_rampdown
+	MOVE.B	#255,D2
+	BRA.S	mt_vib_set
+mt_vib_rampdown
+	TST.B	n_vibratopos(A6)
+	BPL.S	mt_vib_rampdown2
+	MOVE.B	#255,D2
+	SUB.B	D0,D2
+	BRA.S	mt_vib_set
+mt_vib_rampdown2
+	MOVE.B	D0,D2
+	BRA.S	mt_vib_set
+mt_vib_sine
+	MOVE.B	0(A4,D0.W),D2
+mt_vib_set
+	MOVE.B	n_vibratocmd(A6),D0
+	AND.W	#15,D0
+	MULU	D0,D2
+	LSR.W	#7,D2
+	MOVE.W	n_period(A6),D0
+	TST.B	n_vibratopos(A6)
+	BMI.S	mt_VibratoNeg
+	ADD.W	D2,D0
+	BRA.S	mt_Vibrato3
+mt_VibratoNeg
+	SUB.W	D2,D0
+mt_Vibrato3
+	MOVE.W	D0,6(A5)
+	MOVE.B	n_vibratocmd(A6),D0
+	LSR.W	#2,D0
+	AND.W	#$003C,D0
+	ADD.B	D0,n_vibratopos(A6)
+	RTS
+
+mt_TonePlusVolSlide
+	BSR.W	mt_TonePortNoChange
+	BRA.W	mt_VolumeSlide
+
+mt_VibratoPlusVolSlide
+	BSR.S	mt_Vibrato2
+	BRA.W	mt_VolumeSlide
+
+mt_Tremolo
+	MOVE.B	n_cmdlo(A6),D0
+	BEQ.S	mt_Tremolo2
+	MOVE.B	n_tremolocmd(A6),D2
+	AND.B	#$0F,D0
+	BEQ.S	mt_treskip
+	AND.B	#$F0,D2
+	OR.B	D0,D2
+mt_treskip
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$F0,D0
+	BEQ.S	mt_treskip2
+	AND.B	#$0F,D2
+	OR.B	D0,D2
+mt_treskip2
+	MOVE.B	D2,n_tremolocmd(A6)
+mt_Tremolo2
+	MOVE.B	n_tremolopos(A6),D0
+	LEA	mt_VibratoTable(PC),A4
+	LSR.W	#2,D0
+	AND.W	#$001F,D0
+	MOVEQ	#0,D2
+	MOVE.B	n_wavecontrol(A6),D2
+	LSR.B	#4,D2
+	AND.B	#$03,D2
+	BEQ.S	mt_tre_sine
+	LSL.B	#3,D0
+	CMP.B	#1,D2
+	BEQ.S	mt_tre_rampdown
+	MOVE.B	#255,D2
+	BRA.S	mt_tre_set
+mt_tre_rampdown
+	TST.B	n_vibratopos(A6)
+	BPL.S	mt_tre_rampdown2
+	MOVE.B	#255,D2
+	SUB.B	D0,D2
+	BRA.S	mt_tre_set
+mt_tre_rampdown2
+	MOVE.B	D0,D2
+	BRA.S	mt_tre_set
+mt_tre_sine
+	MOVE.B	0(A4,D0.W),D2
+mt_tre_set
+	MOVE.B	n_tremolocmd(A6),D0
+	AND.W	#15,D0
+	MULU	D0,D2
+	LSR.W	#6,D2
+	MOVEQ	#0,D0
+	MOVE.B	n_volume(A6),D0
+	TST.B	n_tremolopos(A6)
+	BMI.S	mt_TremoloNeg
+	ADD.W	D2,D0
+	BRA.S	mt_Tremolo3
+mt_TremoloNeg
+	SUB.W	D2,D0
+mt_Tremolo3
+	BPL.S	mt_TremoloSkip
+	CLR.W	D0
+mt_TremoloSkip
+	CMP.W	#$40,D0
+	BLS.S	mt_TremoloOk
+	MOVE.W	#$40,D0
+mt_TremoloOk
+	MOVE.W	D0,8(A5)
+	MOVE.B	n_tremolocmd(A6),D0
+	LSR.W	#2,D0
+	AND.W	#$003C,D0
+	ADD.B	D0,n_tremolopos(A6)
+	RTS
+
+mt_SampleOffset
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	BEQ.S	mt_sononew
+	MOVE.B	D0,n_sampleoffset(A6)
+mt_sononew
+	MOVE.B	n_sampleoffset(A6),D0
+	LSL.W	#7,D0
+	CMP.W	n_length(A6),D0
+	BGE.S	mt_sofskip
+	SUB.W	D0,n_length(A6)
+	LSL.W	#1,D0
+	ADD.L	D0,n_start(A6)
+	RTS
+mt_sofskip
+	MOVE.W	#$0001,n_length(A6)
+	RTS
+
+mt_VolumeSlide
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	LSR.B	#4,D0
+	TST.B	D0
+	BEQ.S	mt_VolSlideDown
+mt_VolSlideUp
+	ADD.B	D0,n_volume(A6)
+	CMP.B	#$40,n_volume(A6)
+	BMI.S	mt_vsuskip
+	MOVE.B	#$40,n_volume(A6)
+mt_vsuskip
+	MOVE.B	n_volume(A6),D0
+	MOVE.W	D0,8(A5)
+	RTS
+
+mt_VolSlideDown
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+mt_VolSlideDown2
+	SUB.B	D0,n_volume(A6)
+	BPL.S	mt_vsdskip
+	CLR.B	n_volume(A6)
+mt_vsdskip
+	MOVE.B	n_volume(A6),D0
+	MOVE.W	D0,8(A5)
+	RTS
+
+mt_PositionJump
+	MOVE.B	n_cmdlo(A6),D0
+	SUBQ.B	#1,D0
+	MOVE.B	D0,mt_SongPos
+mt_pj2	CLR.B	mt_PBreakPos
+	ST 	mt_PosJumpFlag
+	RTS
+
+mt_VolumeChange
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	CMP.B	#$40,D0
+	BLS.S	mt_VolumeOk
+	MOVEQ	#$40,D0
+mt_VolumeOk
+	MOVE.B	D0,n_volume(A6)
+	MOVE.W	D0,8(A5)
+	RTS
+
+mt_PatternBreak
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	MOVE.L	D0,D2
+	LSR.B	#4,D0
+	MULU	#10,D0
+	AND.B	#$0F,D2
+	ADD.B	D2,D0
+	CMP.B	#63,D0
+	BHI.S	mt_pj2
+	MOVE.B	D0,mt_PBreakPos
+	ST	mt_PosJumpFlag
+	RTS
+
+mt_SetSpeed
+	MOVE.B	3(A6),D0
+	BEQ.W	mt_Return2
+	CLR.B	mt_counter
+	MOVE.B	D0,mt_speed
+	RTS
+
+mt_CheckMoreEfx
+	BSR.W	mt_UpdateFunk
+	MOVE.B	2(A6),D0
+	AND.B	#$0F,D0
+	CMP.B	#$9,D0
+	BEQ.W	mt_SampleOffset
+	CMP.B	#$B,D0
+	BEQ.W	mt_PositionJump
+	CMP.B	#$D,D0
+	BEQ.S	mt_PatternBreak
+	CMP.B	#$E,D0
+	BEQ.S	mt_E_Commands
+	CMP.B	#$F,D0
+	BEQ.S	mt_SetSpeed
+	CMP.B	#$C,D0
+	BEQ.W	mt_VolumeChange
+	BRA.W	mt_PerNop
+
+mt_E_Commands
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$F0,D0
+	LSR.B	#4,D0
+	BEQ.S	mt_FilterOnOff
+	CMP.B	#1,D0
+	BEQ.W	mt_FinePortaUp
+	CMP.B	#2,D0
+	BEQ.W	mt_FinePortaDown
+	CMP.B	#3,D0
+	BEQ.S	mt_SetGlissControl
+	CMP.B	#4,D0
+	BEQ.W	mt_SetVibratoControl
+	CMP.B	#5,D0
+	BEQ.W	mt_SetFineTune
+	CMP.B	#6,D0
+	BEQ.W	mt_JumpLoop
+	CMP.B	#7,D0
+	BEQ.W	mt_SetTremoloControl
+	CMP.B	#9,D0
+	BEQ.W	mt_RetrigNote
+	CMP.B	#$A,D0
+	BEQ.W	mt_VolumeFineUp
+	CMP.B	#$B,D0
+	BEQ.W	mt_VolumeFineDown
+	CMP.B	#$C,D0
+	BEQ.W	mt_NoteCut
+	CMP.B	#$D,D0
+	BEQ.W	mt_NoteDelay
+	CMP.B	#$E,D0
+	BEQ.W	mt_PatternDelay
+	CMP.B	#$F,D0
+	BEQ.W	mt_FunkIt
+	RTS
+
+mt_FilterOnOff
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#1,D0
+	ASL.B	#1,D0
+	AND.B	#$FD,$BFE001
+	OR.B	D0,$BFE001
+	RTS	
+
+mt_SetGlissControl
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	AND.B	#$F0,n_glissfunk(A6)
+	OR.B	D0,n_glissfunk(A6)
+	RTS
+
+mt_SetVibratoControl
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	AND.B	#$F0,n_wavecontrol(A6)
+	OR.B	D0,n_wavecontrol(A6)
+	RTS
+
+mt_SetFineTune
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	MOVE.B	D0,n_finetune(A6)
+	RTS
+
+mt_JumpLoop
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	BEQ.S	mt_SetLoop
+	TST.B	n_loopcount(A6)
+	BEQ.S	mt_jumpcnt
+	SUBQ.B	#1,n_loopcount(A6)
+	BEQ.W	mt_Return2
+mt_jmploop	MOVE.B	n_pattpos(A6),mt_PBreakPos
+	ST	mt_PBreakFlag
+	RTS
+
+mt_jumpcnt
+	MOVE.B	D0,n_loopcount(A6)
+	BRA.S	mt_jmploop
+
+mt_SetLoop
+	MOVE.W	mt_PatternPos(PC),D0
+	LSR.W	#4,D0
+	MOVE.B	D0,n_pattpos(A6)
+	RTS
+
+mt_SetTremoloControl
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	LSL.B	#4,D0
+	AND.B	#$0F,n_wavecontrol(A6)
+	OR.B	D0,n_wavecontrol(A6)
+	RTS
+
+mt_RetrigNote
+	MOVE.L	D1,-(a7)
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	BEQ.S	mt_rtnend
+	MOVEQ	#0,D1
+	MOVE.B	mt_counter(PC),D1
+	BNE.S	mt_rtnskp
+	MOVE.W	(A6),D1
+	AND.W	#$0FFF,D1
+	BNE.S	mt_rtnend
+	MOVEQ	#0,D1
+	MOVE.B	mt_counter(PC),D1
+mt_rtnskp
+	DIVU	D0,D1
+	SWAP	D1
+	TST.W	D1
+	BNE.S	mt_rtnend
+mt_DoRetrig
+	MOVE.W	n_dmabit(A6),$DFF096	; Channel DMA off
+	MOVE.L	n_start(A6),(A5)	; Set sampledata pointer
+	MOVE.W	n_length(A6),4(A5)	; Set length
+	MOVE.W	#300,D0
+mt_rtnloop1
+	DBRA	D0,mt_rtnloop1
+	MOVE.W	n_dmabit(A6),D0
+	BSET	#15,D0
+	MOVE.W	D0,$DFF096
+	MOVE.W	#300,D0
+mt_rtnloop2
+	DBRA	D0,mt_rtnloop2
+	MOVE.L	n_loopstart(A6),(A5)
+	MOVE.L	n_replen(A6),4(A5)
+mt_rtnend
+	MOVE.L	(a7)+,D1
+	RTS
+
+mt_VolumeFineUp
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$F,D0
+	BRA.W	mt_VolSlideUp
+
+mt_VolumeFineDown
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	BRA.W	mt_VolSlideDown2
+
+mt_NoteCut
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	CMP.B	mt_counter(PC),D0
+	BNE.W	mt_Return2
+	CLR.B	n_volume(A6)
+	MOVE.W	#0,8(A5)
+	RTS
+
+mt_NoteDelay
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	CMP.B	mt_Counter,D0
+	BNE.W	mt_Return2
+	MOVE.W	(A6),D0
+	BEQ.W	mt_Return2
+	MOVE.L	D1,-(a7)
+	BRA.W	mt_DoRetrig
+
+mt_PatternDelay
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVEQ	#0,D0
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	TST.B	mt_PattDelTime2
+	BNE.W	mt_Return2
+	ADDQ.B	#1,D0
+	MOVE.B	D0,mt_PattDelTime
+	RTS
+
+mt_FunkIt
+	TST.B	mt_counter
+	BNE.W	mt_Return2
+	MOVE.B	n_cmdlo(A6),D0
+	AND.B	#$0F,D0
+	LSL.B	#4,D0
+	AND.B	#$0F,n_glissfunk(A6)
+	OR.B	D0,n_glissfunk(A6)
+	TST.B	D0
+	BEQ.W	mt_Return2
+mt_UpdateFunk
+	MOVEM.L	A0/D1,-(a7)
+	MOVEQ	#0,D0
+	MOVE.B	n_glissfunk(A6),D0
+	LSR.B	#4,D0
+	BEQ.S	mt_funkend
+	LEA	mt_FunkTable(PC),A0
+	MOVE.B	(A0,D0.W),D0
+	ADD.B	D0,n_funkoffset(A6)
+	BTST	#7,n_funkoffset(A6)
+	BEQ.S	mt_funkend
+	CLR.B	n_funkoffset(A6)
+
+	MOVE.L	n_loopstart(A6),D0
+	MOVEQ	#0,D1
+	MOVE.W	n_replen(A6),D1
+	ADD.L	D1,D0
+	ADD.L	D1,D0
+	MOVE.L	n_wavestart(A6),A0
+	ADDQ.L	#1,A0
+	CMP.L	D0,A0
+	BLO.S	mt_funkok
+	MOVE.L	n_loopstart(A6),A0
+mt_funkok
+	MOVE.L	A0,n_wavestart(A6)
+	MOVEQ	#-1,D0
+	SUB.B	(A0),D0
+	MOVE.B	D0,(A0)
+mt_funkend
+	MOVEM.L	(a7)+,A0/D1
+	RTS
+mt_FunkTable dc.b 0,5,6,7,8,10,11,13,16,19,22,26,32,43,64,128
+mt_VibratoTable	
+	dc.b   0, 24, 49, 74, 97,120,141,161
+	dc.b 180,197,212,224,235,244,250,253
+	dc.b 255,253,250,244,235,224,212,197
+	dc.b 180,161,141,120, 97, 74, 49, 24
+mt_PeriodTable
+; Tuning 0, Normal
+	dc.w	856,808,762,720,678,640,604,570,538,508,480,453
+	dc.w	428,404,381,360,339,320,302,285,269,254,240,226
+	dc.w	214,202,190,180,170,160,151,143,135,127,120,113
+mt_chan1temp	dc.l	0,0,0,0,0,$00010000,0,  0,0,0,0
+mt_chan2temp	dc.l	0,0,0,0,0,$00020000,0,  0,0,0,0
+mt_chan3temp	dc.l	0,0,0,0,0,$00040000,0,  0,0,0,0
+mt_chan4temp	dc.l	0,0,0,0,0,$00080000,0,  0,0,0,0
+mt_SampleStarts	dc.l	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+		dc.l	0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+mt_SongDataPtr	dc.l 0
+mt_speed	dc.b 6
+mt_counter	dc.b 0
+mt_SongPos	dc.b 0
+mt_PBreakPos	dc.b 0
+mt_PosJumpFlag	dc.b 0
+mt_PBreakFlag	dc.b 0
+mt_LowMask	dc.b 0
+mt_PattDelTime	dc.b 0
+mt_PattDelTime2	dc.b 0,0
+mt_PatternPos	dc.w 0
+mt_DMACONtemp	dc.w 0
+;/* End of File */
+set_xy:
+	clr.w	joydat
+	bsr.w	joystick
+	move.w	joydat,d0
+	clr.l	d1
+	clr.l	d2
+	move.w	herost+4,d1
+	move.w	herost+6,d2
+	btst	#0,d0
+	beq.b	.right
+	sub.l	#1,d2
+.right:	btst	#1,d0
+	beq.b	.down
+	add.l	#2,d1
+	move.l	#9,herost
+.down:	btst	#2,d0
+	beq.b	.left
+	add.l	#1,d2
+.left:	btst	#3,d0
+	beq.b	.no_action
+	sub.l	#2,d1
+	move.l	#8,herost
+.no_action:
+	and.l	#%01010,d0
+	cmp.w	#$0,d0
+	bne.b	.trep
+	move.l	#7,herost
+.trep:
+	cmp.l	#258,d1
+	ble.b	.no_prob1
+	move.l	#258,d1
+.no_prob1:
+	cmp.l	#32,d1
+	bge.b	.no_prob2
+	moveq	#32,d1
+.no_prob2:
+	cmp.l	#178+32,d2
+	ble.b	.no_prob3
+	move.l	#178+32,d2
+.no_prob3:
+	cmp.l	#32,d2
+	bge.b	.no_prob4
+	moveq	#32,d2
+.no_prob4:
+	move.w	d1,herost+4
+	move.w	d2,herost+6
+nolp:
+	rts
+joystick:
+fire:	move.l	#%10000,d2
+	tst.b	$bfe001	; Test FIRE
+	bpl.b	get_req
+	bclr	#4,d2
+get_req:
+	clr.l	d0
+	move.w	$dff00c,d0
+rightmi:btst	#1,d0
+	beq.b	leftmi
+	bset	#1,d2
+leftmi:
+	btst	#9,d0
+	beq.b	upmi
+	bset	#3,d2
+upmi:
+	bsr.b	rotate
+	btst	#8,d0
+	beq.b	downmi
+	bset	#0,d2
+downmi:
+	btst	#0,d0
+	beq.b	hicbiri
+	bset	#2,d2
+hicbiri:
+	move.w	d2,joydat
+	rts
+rotate:	move.l	d0,d1
+	lsr.l	#1,d0
+	eor.l	d1,d0
+	rts
+joydat:	dc.w	0
+herosw:	dc.l	0
+Sethero:
+	bchg	#0,herosw
+	move.w	#$24,sprcon
+	move.l	herost,d0
+	cmp.l	#6,herost
+	bgt	.next
+	move.l	#9,d0
+.next	sub.l	#7,d0
+	asl.l	#1,d0
+	asl.l	#8,d0
+	
+	move.l	ha,a0
+	btst	#0,herosw
+	beq.b	.trep
+	move.l	hb,a0
+.trep:
+	add.l	d0,a0
+	clr.l	d0
+	clr.l	d1
+	move.w	herost+4,d0
+	move.w	herost+6,d1
+	cmp.l	#6,herost
+	bgt	.next3
+	move.w	girisx,d0
+	move.w	girisy,d1
+.next3:	bsr.b	calchero
+	move.l	d3,(a0)
+	ori.b	#$80,d3
+	move.l	d3,128(a0)
+	add.l	#16,d0
+	bsr.b	calchero
+	move.l	d3,256(a0)
+	ori.b	#$80,d3
+	move.l	d3,384(a0)
+	move.l	a0,d0
+	lea	hero.spr,a0
+	move.l	#3,d2
+.loop:
+	bsr.b	setcop
+	add.l	#128,d0
+	add.l	#8,a0
+	dbra	d2,.loop	
+ret2:	rts
+setcop:
+	move.l	d0,d1
+	move.w	d1,6(a0)
+	swap	d1
+	move.w	d1,2(a0)
+	rts
+calchero:
+	movem.l	d0-d2,-(a7)
+	add.w	#128,d0
+	add.w	#42-32,d1
+	move.w	d1,d3
+	add.w	#30,d3
+	moveq	#0,d4
+	lsl.w	#8,d1
+	addx.b	d4,d4
+	lsl.w	#8,d3
+	addx.b	d4,d4
+	or.w	d4,d3
+	lsr.w	#1,d0
+	addx.b	d3,d3
+	or.w	d0,d1
+	and.l	#$ffff,d3
+	swap	d1
+	and.l	#$ffff0000,d1
+	or.l	d1,d3
+	movem.l	(a7)+,d0-d2
+	rts			
+calcitem:
+	movem.l	d0-d2,-(a7)
+	add.w	#128,d0
+	add.w	#42-32,d1
+	move.w	d1,d3
+	add.w	#16,d3
+	moveq	#0,d4
+	lsl.w	#8,d1
+	addx.b	d4,d4
+	lsl.w	#8,d3
+	addx.b	d4,d4
+	or.w	d4,d3
+	lsr.w	#1,d0
+	addx.b	d3,d3
+	or.w	d0,d1
+	and.l	#$ffff,d3
+	swap	d1
+	and.l	#$ffff0000,d1
+	or.l	d1,d3
+	movem.l	(a7)+,d0-d2
+	rts			
+frame:	dc.l	0
+rocket_col:
+	lea	rocket_list,a6
+	move.l	rnum,d7
+	subq.l	#1,d7
+	lea	enemy_list,a5
+	lea	sea_list,a4
+	lea	batterylist,a3
+re_rocont:
+	move.w	rox(a6),d0
+	move.w	roy(a6),d1
+	cmp.l	#0,rocnum(a6)
+	beq.b	nothing
+	bsr.b	shot_enm
+	tst.l	d3
+	beq.b	nothing
+	bsr.w	shot_sea
+	tst.l	d3
+	beq.b	nothing
+	bsr.w	shot_bat
+nothing:
+	cmp.l	#6,number(a5)
+	bne.b	.next
+	bsr.w	explode1
+.next:	lea	sizeofrc(a6),a6
+	dbra	d7,re_rocont
+	rts
+shot_enm:
+	lea	enemy_list,a5
+	moveq.l	#enm-1,d4
+enmr:	cmp.l	#6,number(a5)
+	bgt.b	cone
+no_enm:	lea	sizeofel(a5),a5
+	dbra	d4,enmr
+	rts
+cone:	move.w	ex(a5),d2
+	move.w	ey(a5),d3
+	sub.w	d0,d2
+	sub.w	#6,d2
+	sub.w	d1,d3
+	btst	#15,d2
+	beq.b	.sp1
+	not.w	d2
+	cmp.w	#31,d2
+	bgt.b	no_enm
+.sp1:	cmp.w	#22,d2
+	bgt.b	no_enm
+	btst	#15,d3
+	beq.b	.sp2
+	not.w	d3
+.sp2:	cmp.w	#31,d3
+	bgt.b	no_enm
+	move.l	#6,number(a5)
+	clr.l	rocnum(a6)
+	moveq.l	#0,d3
+	add.l	#5,scor
+	rts
+shot_sea:
+	lea	sea_list,a5
+	moveq.l	#seaenm-1,d4
+enmr2:	cmp.l	#6,number(a5)
+	bgt.b	cone2
+no_enm2:lea	sizeofel(a5),a5
+	dbra	d4,enmr2
+	rts
+cone2:	move.w	ex(a5),d2
+	move.w	ey(a5),d3
+	sub.w	d0,d2
+	sub.w	d1,d3
+	sub.w	#6,d2
+	btst	#15,d2
+	beq.b	.sp1
+	not.w	d2
+	cmp.w	#31,d2
+	bgt.b	no_enm2
+.sp1:	cmp.w	#22,d2
+	bgt.b	no_enm2
+	btst	#15,d3
+	beq.b	.sp2
+	not.w	d3
+.sp2:	cmp.w	#32,d3
+	bgt.b	no_enm2
+	move.l	#6,number(a5)
+	clr.l	rocnum(a6)
+	moveq.l	#0,d3
+	add.l	#15,scor
+	rts
+shot_bat:
+	lea	batterylist,a5
+	moveq.l	#batterynum-1,d4
+enmr3:	cmp.l	#6,number(a5)
+	bgt.b	cone3
+no_enm3:lea	sizeofbat(a5),a5
+	dbra	d4,enmr3
+	rts
+cone3:	move.w	bx(a5),d2
+	move.w	by(a5),d3
+	sub.w	d0,d2
+	sub.w	d1,d3
+	sub.w	#6,d2
+	btst	#15,d2
+	beq.b	.sp1
+	not.w	d2
+	cmp.w	#15,d2
+	bgt.b	no_enm3
+.sp1:	cmp.w	#15,d2
+	bgt.b	no_enm3
+	btst	#15,d3
+	beq.b	.sp2
+	not.w	d3
+.sp2:	cmp.w	#15,d3
+	bgt.b	no_enm3
+	sub.l	#1,number(a5)
+	clr.l	bnum(a6)
+	add.l	#5,scor
+	moveq.l	#0,d3
+	rts
+hero_con:
+	cmp.l	#6,herost
+	ble.w	ret
+	lea	fire_list,a6
+	moveq.l	#firenum-1,d7
+fire_hero:
+	cmp.l	#0,fdx(a6)
+	bne.w 	confh
+devam:	lea	sizeoffr(a6),a6
+	dbra	d7,fire_hero
+
+	lea	enemy_list,a6
+	moveq.l	#enm-1,d7
+enemy_hero:
+	cmp.l	#6,number(a6)
+	bgt.b	coneh
+devam2:
+	lea	sizeofel(a6),a6
+	dbra	d7,enemy_hero
+	rts
+coneh:
+	clr.l	d0
+	clr.l	d1
+	move.w	herost+4,d0
+	move.w	herost+6,d1
+	move.w	ex(a6),d2
+	move.w	ey(a6),d3
+	sub.w	d0,d2
+	btst	#15,d2
+	beq.b	.pl1
+	not.w	d2
+.pl1:	cmp.w	#29,d2
+	bgt.b	devam2
+	sub.w	d1,d3
+	btst	#15,d3
+	beq.b	.pl2
+	not.w	d3
+	cmp.w	#30,d3
+	bgt.b	devam2
+.pl2:	cmp.w	#24,d3
+	bgt.b	devam2
+	cmp.l	#0,waspcount
+	bne.b	.wasp
+	move.l	#6,herost
+	bsr	terminate_hero
+.wasp:
+	move.l	#6,number(a6)
+	bsr.w	explode1
+	rts
+confh:	clr.l	d0
+	clr.l	d1
+	move.w	herost+4,d0
+	move.w	herost+6,d1
+	move.w	firex(a6),d2
+	move.w	firey(a6),d3
+	sub.w	d0,d2
+	btst	#15,d2
+	beq.b	.pl1
+	not.w	d2
+	cmp.w	#0,d2
+	bgt.w	devam
+.pl1:	cmp.w	#31,d2
+	bgt.w	devam
+	sub.w	d1,d3
+	btst	#15,d3
+	beq.b	.pl2
+	not.w	d3
+	cmp.w	#0,d3
+	bgt.w	devam
+.pl2:	cmp.w	#24,d3
+	bgt.w	devam
+	cmp.l	#0,waspcount
+	bne.b	.wasp
+	move.l	#6,herost
+	bsr	terminate_hero
+	bsr	explode1
+.wasp:
+	clr.l	fdx(a6)
+	clr.l	firex(a6)
+	cmp.l	#0,waspcount
+	beq.b	.wasp2
+	add.l	#3,scor
+	bsr.w	obje
+.wasp2:
+	rts
+terminate_hero:
+	move.w	#1,intenbl
+	move.w	#0,girisx
+	move.w	#150,girisy
+	move.w	#10,girisco
+	bsr	sethero
+	move.l	#150,waspcount
+	move.l	#wasp.a,ha
+	move.l	#wasp.b,hb
+	rts
+
+show_must_go_on:
+	cmp.l	#0,herost
+	bne	ret		
+must_go:
+	move.w	girisco,d0
+	add.w	d0,girisx
+	btst	#0,herosw
+	beq	.next1
+	cmp.w	#1,girisco
+	beq	.next1
+	sub.w	#1,girisco
+;	and.w	#$f,girisco
+.next1:	cmp.w	#150,girisx
+	ble	.next
+	move.l	#7,herost
+	move.w	girisx,herost+4
+	move.w	girisy,herost+6
+	move.w	#0,intenbl
+	rts
+.next:		
+	bsr	sethero
+	rts
+girisco:dc.w	0
+girisx:	dc.w	0
+girisy:	dc.w	0
+waspcontrol:
+	cmp.l	#0,waspcount
+	beq.w	ret
+	sub.l	#1,waspcount
+	cmp.l	#0,waspcount
+	bne.b	.no_end
+	move.l	#hero.a,ha
+	move.l	#hero.b,hb
+	move.w	#$023,flash
+	move.l	mermibuf,rnum
+	bra.b	.no_end2
+.no_end:
+	cmp.l	#90,waspcount
+	bgt.b	.no_end2
+	move.w	waspcount+2,d0
+	move.l	#wasp.a,ha
+	move.l	#wasp.b,hb
+	btst	#0,d0
+	bne	.next
+	move.l	#hero.a,ha
+	move.l	#hero.b,hb
+.next:
+	and.w	#$f,d0
+	move.w	d0,flash
+.no_end2:
+	rts	
+herost:	dc.l	7,0
+itemcon:
+	cmp.l	#0,itemst
+	beq.w	ret
+	clr.l	d0
+
+	move.w	itemst+4,d0
+	sub.w	herost+4,d0
+	btst	#15,d0
+	beq.b	plusx
+	not.w	d0
+	cmp.w	#15,d0
+	bgt.w	ret
+	bra.b	controly
+plusx:	cmp.w	#31,d0
+	bgt.w	ret
+controly:
+	move.w	itemst+6,d0
+	sub.w	herost+6,d0
+	btst	#15,d0
+	beq.b	plusy
+	not.w	d0
+	cmp.w	#15,d0
+	bgt.w	ret
+	bra.b	controled
+plusy:	cmp.w	#31,d0
+	bgt.w	ret
+controled:
+	bsr.w	obje
+	move.l	#$1400000,itemst+4
+	bsr.w	move_items
+	move.l	itemst,d0
+	clr.l	itemst
+	cmp.l	#1,d0
+	bne.b	maybesmart
+	add.l	#1,hak
+	rts
+maybesmart:
+	cmp.l	#2,d0
+	bne.b	maybeweapon
+	add.l	#1,bomb
+	rts
+maybeweapon:
+	cmp.l	#3,d0
+	bne.b	maybecash
+	add.l	#1,rnum
+	rts
+maybecash:
+	cmp.l	#$4,d0
+	bne.b	maybewasp
+	add.l	#100,scor
+	rts
+ha:		dc.l	hero.a
+hb:		dc.l	hero.b
+waspcount:	dc.l	0
+maybewasp:
+	cmp.l	#6,d0
+	bne.w	ret
+	move.l	#wasp.a,ha
+	move.l	#wasp.b,hb
+	move.l	#200,waspcount
+	move.l	rnum,mermibuf
+	move.l	#4,rnum
+	rts
+mermibuf	dc.l	0
+itemst:	dc.l	6,$1400064
+move_items:
+	cmp.l	#0,itemst
+	beq.w	ret
+	sub.w	#1,itemst+4
+	bne.b	deva
+	clr.l	itemst
+	rts
+deva:
+	move.l	itemst,d0
+	subq.l	#1,d0
+	mulu	#17*4*2,d0
+	lea	item.bin,a0
+	lea	0(a0,d0.w),a0
+	move.w	itemst+4,d0
+	move.w	itemst+6,d1
+	bsr.w	calcitem
+	move.l	d3,(a0)
+	ori.b	#$80,d3
+	move.l	d3,17*4(a0)
+	move.l	a0,d0
+	lea	item.spr,a0
+	bsr.w	setcop
+	lea	8(a0),a0
+	add.l	#17*4,d0
+	bsr.w	setcop
+	rts
+
+press_line:
+	sub.l	#1,yoffset
+	and.l	#$fff,yoffset
+	bsr.w	set_line
+	bsr.w	battery
+	moveq.l	#0,d0
+	moveq.l	#15,d5
+	lea	rplines,a1
+	clr.l	d3
+	move.w	rpoffset,d3
+	lsl.w	#2,d3
+	move.l	0(a1,d3.w),a1
+.loop1:
+	move.w	(a6)+,d0
+	move.l	yoffset,d6
+	btst	#15,d0
+	beq.b	.no_prob
+	not.b	d6
+.no_prob:
+	and.l	#$f,d6
+	and.l	#$fff,d0
+	divu	#20,d0
+	move.l	d0,d1
+	swap	d0
+	and.l	#$ffff,d0
+	and.l	#$ffff,d1
+	lsl.l	#1,d0
+	lsl.l	#4,d1
+	add.w	d6,d1
+	mulu	#40*4,d1
+	add.l	d0,d1
+	lea	backblk,a0
+	add.l	d1,a0
+	bsr.w	w_blit
+	move.l	#-1,bltafwm
+	move.w	#38,bltamod
+	move.w	#38,bltdmod
+	move.l	#$9f00000,bltcon0
+	move.l	a0,bltapt
+	move.l	a1,bltdpt
+	move.w	#[64*4]+1,bltsize
+	add.l	#2,a1
+	dbra	d5,.loop1
+den:
+	cmp.w	#0,rpoffset
+	bgt.b	no_op
+	move.w	#200,rpoffset
+no_op:	sub.w	#1,rpoffset
+	rts
+animswitch:	dc.l	0
+rpoffset:	dc.w	0
+rplines:	blk.l	232,0
+repair:
+	clr.l	d0
+	lea	rplines,a0
+	move.w	rpoffset,d0
+	lsl.w	#2,d0
+	move.l	0(a0,d0.w),a0
+	move.l	workplane,a1
+	add.l	#[40*4*31]+4,a1
+	move.l	#200,d0
+	sub.w	rpoffset,d0
+	move.l	d0,d1
+	bsr.b	repair_it
+
+	lea	scrbuf,a0
+	move.w	rpoffset,d0
+	bsr.b	repair_it
+	rts
+w_blit:	btst	#14,dmacon
+	bne.b	w_blit
+	rts
+repair_it:
+	cmp.w	#0,d0
+	beq.b	ret
+	move.w	d0,d2
+	lsl.w	#7,d0
+	add.w	#40,d0
+	bsr.b	w_blit	
+	move.l	a0,bltapt
+	move.l	a1,bltdpt
+	move.w	#0,bltamod
+	move.w	#0,bltdmod
+	move.l	#$9f00000,bltcon0
+	move.l	#-1,bltafwm
+	move.w	d0,bltsize
+	mulu	#[40*4],d2
+	add.l	d2,a1
+ret:
+	rts
+SET_LINE:
+	clr.l	mx
+	move.l	yoffset,d0
+	lsr.l	#4,d0
+	move.w	d0,my+2
+	bsr.b	findchar
+	lea	linelist,a0
+	moveq.l	#15,d0
+.loop:
+	move.w	(a6)+,(a0)+
+	dbra	d0,.loop
+	rts
+FINDCHAR:
+	move.l	my,d7
+	lsl.l	#4,d7
+	add.l	mx,d7
+	lsl.l	#1,d7
+	move.l	mapptr,a6
+	lea	0(a6,d7),a6
+	rts
+mx:		dc.l	6
+my:		dc.l	112
+yoffset:	dc.l	255*16
+linelist:	blk.l	40,0
+workplane:	dc.l	scr1
+mask_list:	blk.w	16,0
+scr1cop:
+	dc.w	$00e0,$0000,$00e2,$0000
+	dc.w	$00e4,$0000,$00e6,$0000
+	dc.w	$00e8,$0000,$00ea,$0000
+	dc.w	$00ec,$0000,$00ee,$0000
+scr2cop:
+	dc.w	$00e0,$0000,$00e2,$0000
+	dc.w	$00e4,$0000,$00e6,$0000
+	dc.w	$00e8,$0000,$00ea,$0000
+	dc.w	$00ec,$0000,$00ee,$0000
+scr3cop:
+	dc.w	$00e0,$0000,$00e2,$0000
+	dc.w	$00e4,$0000,$00e6,$0000
+	dc.w	$00e8,$0000,$00ea,$0000
+	dc.w	$00ec,$0000,$00ee,$0000
+mapptr:	dc.l	map1
+	incdir	'ram:'
+map1:	incbin	'map1.map'
+firenum	=4-1
+firex	=0
+firey	=2
+fdx	=4
+fdy	=6
+fst	=8
+fcounter=10
+sizeoffr=12
+moveafire:
+	lea	fire_list,a0
+	moveq.l	#firenum-1,d0
+re_fire:
+	lea	fireenemya.mask+2,a2
+	lea	fireenemya.blt+2,a1
+	btst	#0,animswitch
+	beq.b	no_sec
+	lea	fireenemyb.mask+2,a2
+	lea	fireenemyb.blt+2,a1
+no_sec:	
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.w	firex(a0),d1
+	move.w	firey(a0),d2
+	mulu	#40*4,d2
+	move.l	d1,d3
+	lsl.w	#8,d3
+	lsl.w	#4,d3
+	lsr.w	#4,d1
+	lsl.w	#1,d1
+	add.l	d2,d1
+	move.l	workplane,a3
+	add.l	d1,a3
+	bsr.w	w_blit
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#36+[40*3],bltcmod
+	move.w	#36+[40*3],bltdmod
+	move.w	d3,bltcon1
+	ori.w	#$fca,d3
+	move.l	#-1,bltafwm
+	move.w	d3,bltcon0
+	moveq.l	#3,d1
+.loop:
+	bsr.w	w_blit
+	move.l	a1,bltbpt
+	move.l	a2,bltapt
+	move.l	a3,bltcpt
+	move.l	a3,bltdpt
+	move.w	#[64*7]+2,bltsize
+	lea	40(a3),a3
+	lea	4*7(a1),a1
+	dbra	d1,.loop
+
+	cmp.w	#1,fst(a0)
+	bne.b	yarttir
+
+	move.w	fdx(a0),d1
+	add.w	d1,firex(a0)
+	add.b	#1,fcounter(a0)
+	move.b	fcounter+1(a0),d1
+	cmp.b	fcounter(a0),d1
+	bne.b	conkor
+	clr.b	fcounter(a0)
+	move.w	fdy(a0),d1
+	add.w	d1,firey(a0)
+	bra.b	conkor
+yarttir:
+	move.w	fdy(a0),d1
+	add.w	d1,firey(a0)
+	add.b	#1,fcounter(a0)
+	move.b	fcounter+1(a0),d1
+	cmp.b	fcounter(a0),d1
+	bne.b	conkor
+	clr.b	fcounter(a0)
+	move.w	fdx(a0),d1
+	add.w	d1,firex(a0)
+conkor:
+	move.w	firex(a0),d1
+	btst	#15,d1
+	beq.b	no_cor1
+	clr.l	fdx(a0)
+	clr.w	firex(a0)
+no_cor1:
+	cmp.w	#320-32,d1
+	blt.b	no_cor2
+	move.w	#320-32,firex(a0)
+	clr.l	fdx(a0)
+no_cor2:
+	move.w	firey(a0),d1
+	btst	#15,d1
+	beq.b	no_cor3
+	clr.l	fdx(a0)
+	clr.w	firey(a0)
+no_cor3:
+	cmp.w	#232,d1
+	blt.b	no_cor4
+	clr.l	fdx(a0)
+	move.w	#232,firey(a0)
+no_cor4:
+	add.l	#sizeoffr,a0
+	dbra	d0,re_fire
+	rts
+setafire:
+	movem.l	d0-d7/a0-a6,-(a7)
+	lea	fire_list,a0
+	move.l	#firenum,d7
+no_free:
+	cmp.l	#0,fdx(a0)
+	beq.b	ifind
+	lea	sizeoffr(a0),a0
+	dbra	d7,no_free
+exi:
+	movem.l	(a7)+,d0-d7/a0-a6
+	rts
+ifind:
+	move.w	d5,firex(a0)
+	move.w	d6,firey(a0)
+	clr.l	d0
+	clr.l	d1
+	move.w	herost+4,d0
+	move.w	herost+6,d1
+	add.w	#10,d0
+	add.w	#10,d1
+	sub.w	d5,d0
+	sub.w	d6,d1
+
+	move.l	#$fffe0000,d2
+	btst	#15,d0
+	bne.b	pub1
+	move.l	#$20000,d2
+	cmp.w	#0,d0
+	bne.b	pub1
+	moveq.l	#0,d2
+pub1:
+	move.w	#-2,d2
+	btst	#15,d1
+	bne.b	pub2
+	move.w	#2,d2
+	cmp.w	#0,d1
+	bne.b	pub2
+	move.w	#0,d2
+	cmp.w	#0,d0
+	bne.b	pub2
+	move.w	#2,d2
+pub2:
+	btst	#15,d0
+	beq.b	pub3
+	not.w	d0
+	addq.l	#1,d0
+pub3:
+	btst	#15,d1
+	beq.b	pub4
+	not.w	d1
+	addq.l	#1,d1
+pub4:
+	cmp.w	d0,d1
+	bge.b	ybuyuk
+	move.l	#$10001,d3	;x>=y
+	cmp.w	#0,d1
+	beq.b	pubson
+
+	divu	d1,d0
+	move.b	d0,d3
+	bra.b	pubson
+ybuyuk:
+	move.l	#$00001,d3
+	cmp.w	#0,d0
+	beq.b	pubson
+	divu	d0,d1
+	move.b	d1,d3
+pubson:
+	asl.l	#1,d2
+	move.l	d2,fdx(a0)
+	move.l	d3,fst(a0)
+	bra.w	exi
+
+fire_list:
+	blk.b	[firenum+1]*sizeoffr,0
+setastrike:
+	move.l	strikeptr,a0
+	cmp.w	#$ffff,(a0)
+	bne.b	no_son
+	move.l	#strike_list,strikeptr
+	rts
+no_son:
+	move.l	yoffset,d0
+	cmp.w	(a0),d0
+	bne.w	ret
+	lea	enemy_list,a1
+	move.l	#enm-1,d1
+check_it:
+	cmp.l	#0,(a1)
+	beq.b	okey_yervar1
+	add.l	#16,a1
+	dbra	d1,check_it
+	add.l	#12,strikeptr
+	rts
+okey_yervar1:
+	move.l	2(a0),number(a1)
+	move.l	6(a0),a2
+	move.w	(a2)+,strcount(a1)
+	move.l	a2,strstyle(a1)
+	move.b	11(a0),fire_set(a1)
+	move.b	11(a0),firetime(a1)
+	add.l	#12,strikeptr
+	rts
+*­­­structure enemy_list­­­­
+enm	=8
+number	=0	;l
+ex	=4	;w
+ey	=6	;w
+strstyle=8	;ptr
+strcount=12	;w
+firetime=14	;b
+fire_set=15	;b
+sizeofel=16
+*­­­­­­­­­­­­­­­­­­­­­­­­­­­
+set_enemy:
+	moveq.l	#enm-1,d0
+	lea	enemy_list,a6
+loopana:
+	move.l	number(a6),d1
+	cmp.w	#6,d1
+	ble.w	re_loop
+	sub.l	#7,d1
+	move.l	d1,d2
+	mulu	#6*32*4,d1
+	mulu	#6*32,d2
+	sub.b	#1,firetime(a6)
+	bne.b	no_prob5
+	move.b	fire_set(a6),firetime(a6)
+	move.w	ex(a6),d5
+	move.w	ey(a6),d6
+	add.w	#10,d5
+	add.w	#10,d5
+	bsr.w	setafire
+no_prob5:
+	sub.w	#1,strcount(a6)
+	bne.b	.no_prob
+	clr.l	(a6)
+	clr.l	ex(a6)
+	clr.l	strstyle(a6)
+	clr.l	strcount(a6)
+	bra.w	re_loop
+.no_prob:
+	move.l	strstyle(a6),a0
+	move.l	(A0)+,ex(a6)
+	move.l	a0,strstyle(a6)
+	lea	airenemsa+2,a0
+	lea	airenemsa.mask+2,a1
+	btst	#0,animswitch
+	beq.b	.no_prob1
+	lea	airenemsb+2,a0
+	lea	airenemsb.mask+2,a1
+.no_prob1:
+	lea	0(a1,d2),a1
+	lea	0(a0,d1),a0
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.w	ey(a6),d1
+	mulu	#40*4,d1
+	move.w	ex(a6),d2
+	move.w	d2,d3
+	lsr.w	#3,d2
+	and.b	#$fe,d2
+	add.w	d2,d1
+	move.l	workplane,a2
+	add.l	d1,a2
+
+	lsl.w	#8,d3
+	lsl.w	#4,d3
+	bsr.w	w_blit
+	and.l	#$f000,d3
+	move.w	d3,bltcon1
+	ori.w	#$fca,d3
+	move.w	d3,bltcon0
+	move.l	#-1,bltafwm
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#34+[40*3],bltcmod
+	move.w	#34+[40*3],bltdmod
+	moveq.l	#3,d3
+.loop:
+	bsr.w	w_blit
+	move.l	a1,bltapt
+	move.l	a0,bltbpt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*32]+3,bltsize
+	add.l	#6*32,a0
+	add.l	#40,a2
+	dbra	d3,.loop
+re_loop:
+	add.l	#sizeofel,a6
+	dbra	d0,loopana
+	rts
+enemy_list:
+	blk.b	sizeofel*enm,0
+*­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­
+setexp:
+	move.l	#enm-1,d0
+	lea	enemy_list,a6
+re_exp:	cmp.l	#7,(a6)
+	bge.b	noop
+	bsr.b	exvenob
+noop:	lea	sizeofel(a6),a6
+	dbra	d0,re_exp
+
+	move.l	#seaenm-1,d0
+	lea	sea_list,a6
+re_exp1:cmp.l	#7,(a6)
+	bge.b	noop1
+	bsr.b	exvenob
+noop1:	lea	sizeofel(a6),a6
+	dbra	d0,re_exp1
+
+	move.l	#batterynum-1,d0
+	lea	batterylist,a6
+	move.l	#-1,d7
+re_exp2:cmp.l	#7,(a6)
+	bge.b	noop2
+	bsr.b	exvenob
+noop2:	lea	sizeofbat(a6),a6
+	dbra	d0,re_exp2
+	moveq.l	#0,d7
+	lea	herost,a6
+	cmp.l	#6,(a6)
+	ble.b	exvenob
+	rts
+exvenob:
+	move.l	number(a6),d1
+	beq.b	no_pl
+	cmp.w	#232,ey(a6)
+	bgt.b	no_pl
+	add.w	#1,ey(a6)
+	CMP.L	#0,D1
+	BEQ.B	NO_PL
+	btst	#0,animswitch
+	beq	no_pl
+	sub.l	#1,number(a6)
+no_pl:
+	lea	expvenob.blt+2,a0
+	lea	expvenob.mask+2,a1	
+	move.l	d1,d2
+	mulu	#6*32*4,d1
+	mulu	#6*32,d2
+	lea	0(a1,d2),a1
+	lea	0(a0,d1),a0
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.w	ey(a6),d1
+	cmp.w	#-1,d7
+	bne	.next
+	sub.l	#8,d1
+.next:	mulu	#40*4,d1
+	move.w	ex(a6),d2
+	cmp.w	#-1,d7
+	bne	.next2
+	sub.l	#8,d2
+.next2:	move.w	d2,d3
+	lsr.w	#3,d2
+	and.b	#$fe,d2
+	add.w	d2,d1
+	move.l	workplane,a2
+	add.l	d1,a2
+
+	lsl.w	#8,d3
+	lsl.w	#4,d3
+	bsr.w	w_blit
+	and.l	#$f000,d3
+	move.w	d3,bltcon1
+	ori.w	#$fca,d3
+	move.w	d3,bltcon0
+	move.l	#-1,bltafwm
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#34+[40*3],bltcmod
+	move.w	#34+[40*3],bltdmod
+	moveq.l	#3,d3
+.loop:
+	bsr.w	w_blit
+	move.l	a1,bltapt
+	move.l	a0,bltbpt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*32]+3,bltsize
+	add.l	#6*32,a0
+	add.l	#40,a2
+	dbra	d3,.loop
+	rts
+*­­­­­­­­­­­­­­­­­­­
+batterynum=8
+bnum	=0
+bx	=4
+by	=6
+bfire	=8
+bfireset=9
+sizeofbat=10
+activeallbatterys:
+	lea	batterylist,a6
+	moveq.l	#batterynum-1,d4
+analoop2:
+	clr.l	d0
+	clr.l	d1
+	move.w	herost+4,d0
+	move.w	herost+6,d1
+	move.w	bx(a6),d2
+	move.w	by(a6),d3
+	cmp.l	#7,bnum(a6)
+	blt.w	no_pro8
+
+	cmp.b	#0,bfire(a6)
+	bne.b	no_bfire
+	move.b	bfireset(a6),bfire(a6)
+	move.w	bx(a6),d5
+	move.w	by(a6),d6
+	add.w	#6,d5
+	add.w	#9,d6
+	bsr.w	setafire
+no_bfire:
+	sub.b	#1,bfire(a6)
+	lea	batterya.blt+2,a0
+	lea	batterya.mask+2,a1
+	btst	#0,animswitch
+	beq.b	.noprt
+	lea	batteryb.blt+2,a0
+	lea	batteryb.mask+2,a1
+.noprt:
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.l	workplane,a2
+	move.w	bx(a6),d1
+	move.w	by(a6),d2
+	mulu	#40*4,d2
+	lsr.w	#4,d1
+	lsl.w	#1,d1
+	add.l	d1,d2
+	add.l	d2,a2
+	bsr.w	w_blit
+	move.l	#-1,bltafwm
+	move.l	#$fca0000,bltcon0
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#36+[40*3],bltcmod
+	move.w	#36+[40*3],bltdmod
+	moveq.l	#3,d1
+.loop:
+	bsr.w	w_blit
+	move.l	a0,bltbpt
+	move.l	a1,bltapt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*16]+2,bltsize
+	lea	40(a2),a2
+	lea	4*16(a0),a0
+	dbra	d1,.loop
+	cmp.w	#232,by(a6)
+	blt.b	no_pro8a
+	clr.l	bnum(a6)
+no_pro8a:
+	add.w	#1,by(a6)
+no_pro8:lea	sizeofbat(a6),a6
+	dbra	d4,analoop2
+	rts
+battery:
+	movem.l	d3/a0,-(a7)
+	move.l	yoffset,d3
+	and.l	#$f,d3
+	cmp.w	#$f,d3
+	bne.b	exbat
+	lea	linelist,a0
+	moveq.l	#0,d3
+re_bat
+	cmp.w	#$d1,(a0)+
+	bne.b	no_bat
+	bsr.b	setabattery
+no_bat:
+	addq.l	#1,d3
+	cmp.w	#16,d3
+	bne.b	re_bat
+exbat:	movem.l	(a7)+,d3/a0
+	rts
+
+
+setabattery:
+	movem.l	d0/d3/a0,-(a7)
+	lea	batterylist,a0
+	moveq.l	#batterynum-1,d0
+.loop:
+	cmp.l	#0,bnum(a0)
+	beq.b	found
+	lea	sizeofbat(a0),a0
+	dbra	d0,.loop
+	movem.l	(a7)+,d0/d3/a0
+ 	rts
+found:	lsl.w	#4,d3
+	add.w	#32,d3
+	move.l	#8,(a0)+	;number
+	move.w	d3,(a0)+
+	move.w	#1,(a0)+
+	move.w	#$0190,(a0)
+	bchg	#0,batsw
+	btst	#0,batsw
+	bne.b	.no_di
+	move.w	#$3080,(a0)
+.no_di:	
+	movem.l	(a7)+,d0/d3/a0
+	rts
+batsw:	dc.l	0
+
+batterylist:
+	blk.b	sizeofbat*batterynum,0
+*­­­structure sea enemy_list­­­­
+seaenm	=5
+*­­­­­­­­­­­­­­­­­­­­­­­­­­­
+conaboat:
+	move.l	yoffset,d0
+	and.l	#$f,d0
+	cmp.w	#$f,d0
+	bne.w	ret
+new_con:
+	move.w	linelist,d0
+	and.l	#$f000,d0
+	cmp.l	#0,d0
+	beq.w	ret
+itemmi:	cmp.w	#$1000,d0
+	beq.b	itemdegil
+	asr.w	#8,d0
+	asr.w	#4,d0
+	subq.w	#1,d0
+	move.b	d0,itemst+3
+	move.l	#$1400064,itemst+4
+	rts
+itemdegil:
+	lea	sea_list,a1
+	move.l	#seaenm-1,d0
+re_gun:
+	cmp.l	#0,(a1)
+	beq.b	set_gunboat
+	add.l	#sizeofel,a1
+	dbra	d0,re_gun
+	rts
+set_gunboat:
+	move.l	strikeptrsea,a0
+	cmp.l	#-1,(a0)
+	bne.b	no_opr
+	move.l	#strikelistsea,strikeptrsea
+	move.l	#strikelistsea,a0
+no_opr:	
+	move.l	0(a0),number(a1)
+	move.l	4(a0),a2
+	move.w	(a2)+,strcount(a1)
+	move.l	a2,strstyle(a1)
+	move.b	9(a0),fire_set(a1)
+	move.b	9(a0),firetime(a1)
+	add.l	#10,strikeptrsea
+	rts
+
+sea_enemy:
+	moveq.l	#seaenm-1,d0
+	lea	sea_list,a6
+sea_loopana:
+	move.l	number(a6),d1
+	cmp.w	#6,d1
+	ble.w	sea_re_loop
+	sub.l	#7,d1
+	move.l	d1,d2
+	mulu	#6*32*4,d1
+	mulu	#6*32,d2
+	sub.b	#1,firetime(a6)
+	bne.b	sea_no_prob5
+	move.b	fire_set(a6),firetime(a6)
+	move.w	ex(a6),d5
+	move.w	ey(a6),d6
+	add.w	#14,d5
+	add.w	#8,d5
+	bsr.w	setafire
+sea_no_prob5:
+	sub.w	#1,strcount(a6)
+	bne.b	.no_prob
+	clr.l	(a6)
+	clr.l	ex(a6)
+	clr.l	strstyle(a6)
+	clr.l	strcount(a6)
+	bra.w	sea_re_loop
+.no_prob:
+	move.l	strstyle(a6),a0
+	move.l	(A0)+,ex(a6)
+	move.l	a0,strstyle(a6)
+	lea	seaenemsa+2,a0
+	lea	seaenemsa.mask+2,a1
+	btst	#0,animswitch
+	beq.b	.no_prob1
+	lea	seaenemsb+2,a0
+	lea	seaenemsb.mask+2,a1
+.no_prob1:
+	lea	0(a1,d2),a1
+	lea	0(a0,d1),a0
+	moveq.l	#0,d1
+	moveq.l	#0,d2
+	move.w	ey(a6),d1
+	mulu	#40*4,d1
+	move.w	ex(a6),d2
+	move.w	d2,d3
+	lsr.w	#3,d2
+	and.b	#$fe,d2
+	add.w	d2,d1
+	move.l	workplane,a2
+	add.l	d1,a2
+
+	lsl.w	#8,d3
+	lsl.w	#4,d3
+	bsr.w	w_blit
+	and.l	#$f000,d3
+	move.w	d3,bltcon1
+	ori.w	#$fca,d3
+	move.w	d3,bltcon0
+	move.l	#-1,bltafwm
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#34+[40*3],bltcmod
+	move.w	#34+[40*3],bltdmod
+	moveq.l	#3,d3
+.loop:
+	bsr.w	w_blit
+	move.l	a1,bltapt
+	move.l	a0,bltbpt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*32]+3,bltsize
+	add.l	#6*32,a0
+	add.l	#40,a2
+	dbra	d3,.loop
+sea_re_loop:
+	add.l	#sizeofel,a6
+	dbra	d0,sea_loopana
+	rts
+sea_list:
+	blk.b	sizeofel*seaenm,0
+rnum:	dc.l	1
+rocnum	=0
+rox	=4
+roy	=6
+sizeofrc=8
+set_df:
+	sub.w	#1,rocfl
+	rts
+rocfl:	dc.w	0
+set_a_rocket:
+	cmp.w	#0,rocfl
+	bne.b	set_df	
+	lea	rocket_list,a6
+	move.l	rnum,d4
+	subq.l	#1,d4
+re_ro:	cmp.l	#0,rocnum(a6)
+	beq.b	new_rocket
+	add.l	#sizeofrc,a6
+	dbra	d4,re_ro
+	rts
+new_rocket:
+	move.l	#1,rocnum(a6)
+	move.w	herost+4,rox(a6)
+	move.w	herost+6,roy(a6)
+	add.w	#1,roy(a6)
+	bsr.w	rockext
+	move.w	#2,rocfl
+	rts
+
+move_rockets:
+	lea	rocket_list,a6
+	move.l	rnum,d4
+	subq.l	#1,d4
+ana_rocs:
+	cmp.l	#0,rocnum(a6)
+	beq.w	no_rocket
+	sub.w	#16,roy(a6)
+	cmp.w	#32,roy(a6)
+	bgt.b	no_probl
+	clr.l	rocnum(a6)
+no_probl:
+	moveq.l	#0,d0
+	moveq.l	#0,d1
+	move.w	roy(a6),d1
+	mulu	#40*4,d1
+	move.w	rox(a6),d0
+	move.l	d0,d2
+	lsr.w	#4,d0
+	lsl.w	#1,d0
+	add.l	d0,d1
+	move.l	workplane,a2
+	add.l	d1,a2
+
+	lsl.w	#8,d2
+	lsl.w	#4,d2
+	and.w	#$f000,d2
+	lea	rocket.blt+2,a0
+	lea	rocket.mask+2,a1
+	move.l	rnum,d0
+	subq.l	#1,d0
+	mulu	#6*16,d0
+	add.l	d0,a1
+	asl.l	#2,d0
+	add.l	d0,a0
+	bsr.w	w_blit
+	move.l	#-1,bltafwm
+	move.w	d2,bltcon1
+	or.w	#$fca,d2
+	move.w	d2,bltcon0
+	move.w	#0,bltamod
+	move.w	#0,bltbmod
+	move.w	#34+[40*3],bltcmod
+	move.w	#34+[40*3],bltdmod
+	moveq.l	#3,d0
+.loop:
+	bsr.w	w_blit
+	move.l	a0,bltbpt
+	move.l	a1,bltapt
+	move.l	a2,bltcpt
+	move.l	a2,bltdpt
+	move.w	#[64*15]+3,bltsize
+	lea	40(a2),a2
+	lea	6*16(a0),a0
+	dbra	d0,.loop
+no_rocket:
+	lea	sizeofrc(a6),a6
+	dbra	d4,ana_rocs
+	rts
+rocket_list:	blk.b	sizeofrc*9,0
+pre_st:
+	move.l	textptr,a0	
+	lea	text.bm+4,a1
+	moveq.l	#35,d0
+.loop:	moveq.l	#0,d1
+	move.b	(a0)+,d1
+	sub.b	#' ',d1
+	lsl.w	#3,d1
+	lea	font.bm,a2
+	lea	(a2,d1.w),a2
+	move.b	(a2)+,(a1)
+	move.b	(a2)+,[40*1](a1)
+	move.b	(a2)+,[40*2](a1)
+	move.b	(a2)+,[40*3](a1)
+	move.b	(a2)+,[40*4](a1)
+	move.b	(a2)+,[40*5](a1)
+	move.b	(a2)+,[40*6](a1)
+	move.b	(a2)+,[40*7](a1)
+	lea	1(a1),a1
+	dbra	d0,.loop
+	rts
+calc_values:
+	move.l	scor,d0
+	and.l	#$ffff,d0
+	bsr.b	con_val
+	lea	scrloc+scorer,a0
+	lea	asci_value,a1
+	move.l	(a1)+,(a0)+
+	move.b	(a1),(a0)
+
+	and.l	#$1f,bomb
+	move.l	bomb,d0
+	bsr.b	con_val
+	lea	bombloc+scorer,a0
+	lea	asci_value+3,a1
+	move.b	(a1)+,(a0)+
+	move.b	(a1),(a0)
+
+	and.l	#$f,hak
+	move.l	hak,d0
+	bsr.b	con_val
+	lea	hakloc+scorer,a0
+	lea	asci_value+3,a1
+	move.b	(a1)+,(a0)+
+	move.b	(a1),(a0)
+	rts	
+
+con_val:
+	moveq.l	#4,d7
+	lea	asci_value,a5
+	move.l	#10000,d1
+.loop:
+	divu	d1,d0
+	move.l	d0,d2
+	swap	d0
+	and.l	#$ffff,d0
+	and.l	#$ffff,d2
+	add.b	#'0',d2
+	move.b	d2,(a5)+
+	divu	#10,d1
+	and.l	#$ffff,d1
+	dbra	d7,.loop
+	rts
+asci_value:dc.b	'000000'
+*­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­­
+strikeptr:	dc.l	strike_list
+strikeptrsea:	dc.l	strikelistsea
+
+*­­­­­­­­­­­­­­­­­­­­AIR­­­­­­­­­­­­­­­­­­­
+strike_list:
+	setair	[230*16],18,seastr5,$80
+	setair	[229*16],11,str1,$80
+	setair	[228*16],9,str1,$80
+	setair	[227*16],9,str1,$80
+	setair	[227*16],9,str1,$80
+	setair	[222*16],10,str1,$80
+	setair	[221*16],16,str1,$80
+	setair	[220*16],10,str1,$80
+
+	setair	[215*16],14,str1,$80
+	setair	[210*16],11,str1,$80
+	setair	[205*16],9,str1,$80
+	setair	[201*16],9,str1,$80
+	setair	[190*16],9,str1,$80
+	setair	[189*16],10,str1,$80
+	setair	[170*16],16,str1,$80
+
+	setair	[8*16],14,str1,$80
+	setair	[7*16],11,str1,$80
+	setair	[6*16],9,str1,$80
+	setair	[5*16],9,str1,$80
+	setair	[4*16],10,str1,80
+	setair	[3*16],11,str1,80
+	setair	[2*16],17,str1,80
+	setair	[1*16],9,str1,80
+	setair	-1,-1,-1,-1
+
+*­­­­­­­­­­­­­­­­­­­­SEA­­­­­­­­­­­­­­­­­­­
+strikelistsea:
+	setsea	6+1,seastr4,$40
+	setsea	6+2,seastr1,$40
+	setsea	6+1,seastr4,$40
+	setsea	6+5,seastr5,$40
+	setsea	6+3,seastr2,$40
+	setsea	6+4,seastr3,$40
+	setsea	6+4,seastr5,$40
+	setsea	6+3,seastr1,$40
+
+	setsea	6+4,seastr2,$40
+	setsea	6+6,seastr1,$40
+	setsea	6+6,seastr4,$40
+	setsea	6+4,seastr3,$40
+	setsea	6+3,seastr2,$40
+	setsea	6+5,seastr5,$40
+	setsea	6+1,seastr4,$40
+	setsea	6+2,seastr1,$40
+	setsea	6+1,seastr4,$40
+	setsea	6+5,seastr5,$40
+	setsea	6+3,seastr2,$40
+	setsea	6+4,seastr3,$40
+	setsea	6+5,seastr5,$40
+	setsea	-1,-1,-1
+
+;___________STRIKE LIST_____________
+str1:	incbin	'airstrike1'
+seastr1:incbin	'seastrike1'
+seastr2:incbin	'seastrike2'
+seastr3:incbin	'seastrike3'
+seastr4:incbin	'seastrike4'
+seastr5:incbin	'seastrike5'
+;¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+scor:	dc.l	0
+bomb:	dc.l	3
+hak:	dc.l	4
+scrloc	=6
+bombloc	=22
+hakloc	=30
+textptr:dc.l	scorer
+scorer:	dc.b	'SCORE:000000    SMART:00 LIFE:00    '
+;¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+	even
+	blk.l	200,0
+stack:
+	section	copper,data_c
+*_____________________________________________________________
+NEWCOPPER:
+hero.spr:
+	dc.l	$01200000,$01220000,$01240000,$01260000
+	dc.l	$01280000,$012a0000,$012c0000,$012e0000
+item.spr:
+	dc.l	$01300000,$01320000,$01340000,$01360000
+	dc.l	$01380000,$013a0000,$013c0000,$013e0000
+
+	dc.w	$008e,$29a1,$0090,$29a1,$0092,$0038,$0094,$00d0
+	dc.w	$0102,$0000,$0104
+sprcon:	dc.w	$0024,$0108,$0078,$010a,$0078
+	dc.w	$0100,$0200,$01a2,$0ff0
+PlanePtr:
+	dc.w	$00e0,$0000,$00e2,$0000
+	dc.w	$00e4,$0000,$00e6,$0000
+	dc.w	$00e8,$0000,$00ea,$0000
+	dc.w	$00ec,$0000,$00ee,$0000
+	dc.w	$0100,$4200
+cop1:	dc.w	$0180
+mavi:	dc.w	$0023
+	dc.w	$0182,$0FDB
+	dc.w	$0184,$0CA9
+	dc.w	$0186,$0977
+	dc.w	$0188,$0554
+	dc.w	$018A,$0332
+	dc.w	$018C,$0000
+	dc.w	$018E,$0680
+	dc.w	$0190,$0986
+	dc.w	$0192,$0460
+	dc.w	$0194,$0E00
+	dc.w	$0196,$0EEE
+	dc.w	$0198,$0AAA
+	dc.w	$019A,$0078
+	dc.w	$019C,$0056
+	dc.w	$019E,$0045
+
+	dc.w	$01a0,$0023,$01a2,$0fdb,$01a4,$0ca9,$01a6,$0977
+	dc.w	$01a8,$0554,$01aa,$0332,$01ac,$0000,$01ae,$0c33
+	dc.w	$01b0,$0986,$01b2,$0640,$01b4,$0086,$01b6,$0fc0
+	dc.w	$01b8,$0c0f,$01ba,$080a,$01bc,$0808,$01be,$0505
+
+
+	dc.w	$f001,$ff00,$0100,$0200
+	dc.w	$f101,$ff00,$0100,$1200,$10a,0,$108,0,$182,$ddd
+planeptr2:
+	dc.w	$00e0,$0000,$00e2,$0000
+	dc.w	$f201,$ff00,$180
+flash:	dc.w	$023
+	dc.w	$f501,$ff00,$182,$fe0
+	dc.w	$f601,$ff00,$182,$f70
+	dc.w	$f701,$ff00,$182,$f11
+
+	dc.w	$f801,$ff00,$100,$0200
+	dc.w	$f901,$ff00,$180,$023
+	dc.l	-2
+
+
+*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+font.bm:	dc.l	0,0
+		incbin	'font.bm'
+backblk:	incbin	'level1.blk'
+expvenob.blt:	incbin	'explode.blt'
+expvenob.mask:	incbin	'explode.mask'
+airenemsa:	incbin	'enemyairaa.blt'
+airenemsa.mask:	incbin	'enemyairaa.mask'
+airenemsb:	incbin	'enemyairbb.blt'
+airenemsb.mask:	incbin	'enemyairbb.mask'
+fireenemya.blt:	incbin	'firea.blt'
+fireenemya.mask:incbin	'firea.mask'
+fireenemyb.blt:	incbin	'fireb.blt'
+fireenemyb.mask:incbin	'fireb.mask'
+batterya.blt:	incbin	'batterya.blt'
+batterya.mask:	incbin	'batterya.mask'
+batteryb.blt:	incbin	'batteryb.blt'
+batteryb.mask:	incbin	'batteryb.mask'
+seaenemsa:	incbin	'enemysea-a.blt'
+seaenemsa.mask:	incbin	'enemysea-a.mask'
+seaenemsb:	incbin	'enemysea-b.blt'
+seaenemsb.mask:	incbin	'enemysea-b.mask'
+rocket.blt:	incbin	'roketa.blt'
+rocket.mask:	incbin	'roketa.mask'
+hero.a:		incbin	'hero.a'
+hero.b:		incbin	'hero.b'
+wasp.a:		incbin	'wasp.a'
+wasp.b:		incbin	'wasp.b'
+item.bin:	incbin	'items.spr'
+*_____________________________________
+scr1:		blk.b	264*40*4,0
+scr2:		blk.b	264*40*4,0
+		blk.b	264*40,0
+scrbuf:		blk.b	264*40*4,$ff
+text.bm:	blk.b	40*8,$f0
+*¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+mt_data:
+		incbin	'mod.background'

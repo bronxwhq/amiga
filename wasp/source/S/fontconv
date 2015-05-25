@@ -1,0 +1,11 @@
+	incdir	'ram:'
+o:
+	lea	font,a0
+	lea	font1,a1
+	move.l	#463,d0
+loop:	move.b	(a0)+,(a1)+
+	lea	1(a0),a0
+	dbf	d0,loop
+	rts
+font:	incbin	'font.bm'
+font1:	blk.l	400,0

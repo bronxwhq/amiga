@@ -1,0 +1,5 @@
+	incdir	'gam:rambuf/'
+start:
+	incbin	'enemyair-b.blt'
+	incbin	'enemyair-b2.blt'
+son:
