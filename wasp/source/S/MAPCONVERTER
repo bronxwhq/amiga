@@ -1,50 +1,52 @@
-	section	a,code
+    section a,code
 o:
-	movem.l	d0-d6/a0-a6,-(a7)
-	move.l	#map1,a0
-	move.l	20(a0),widht
-	bsr	convert
-	movem.l	(a7)+,d0-d6/a0-a6
-	rts
+    movem.l d0-d6/a0-a6,-(a7)
+    move.l  #map1,a0
+    move.l  20(a0),widht
+    bsr convert
+    movem.l (a7)+,d0-d6/a0-a6
+    rts
+
 convert:
-	clr.l	d2
-	clr.l	d3
-	move.w	widht,d2
-	move.w	height,d3
-	move.l	#0,d1
-	lea	map2,a0
+    clr.l   d2
+    clr.l   d3
+    move.w  widht,d2
+    move.w  height,d3
+    move.l  #0,d1
+    lea map2,a0
 .loop1:
-	move.l	#0,d0
+    move.l  #0,d0
 .loop2:
-	move.l	d0,mx
-	move.l	d1,my
-	bsr	findword
-	move.w	(a6),(a0)+
-	move.w	(a6),$dff180
-	add.l	#1,d0
-	cmp.w	widht,d0
-	bne	.loop2
-	add.l	#1,d1
-	cmp.w	height,d1
-	bne	.loop1
-	move.l	a0,d7
-	sub.l	#map2,a0
-	move.l	a0,lenght
-	rts
+    move.l  d0,mx
+    move.l  d1,my
+    bsr findword
+    move.w  (a6),(a0)+
+    move.w  (a6),$dff180
+    add.l   #1,d0
+    cmp.w   widht,d0
+    bne .loop2
+    add.l   #1,d1
+    cmp.w   height,d1
+    bne .loop1
+    move.l  a0,d7
+    sub.l   #map2,a0
+    move.l  a0,lenght
+    rts
 
 FINDWORD:
-	move.l	mx,d7
-	lsl.l	#8,d7
-	add.l	my,d7
-	lsl.l	#1,d7
-	move.l	mapptr,a6
-	lea	0(a6,d7),a6
-	rts
-mx:		dc.l	6
-my:		dc.l	112
-mapptr:		dc.l	map1+32
-map1:	incbin	'ram:map1.map'
-lenght:		dc.l	0
-widht:		dc.w	0
-height:		dc.w	0
-MAP2:		blk.b	20000,0
+    move.l  mx,d7
+    lsl.l   #8,d7
+    add.l   my,d7
+    lsl.l   #1,d7
+    move.l  mapptr,a6
+    lea 0(a6,d7),a6
+    rts
+
+mx:     dc.l    6
+my:     dc.l    112
+mapptr: dc.l    map1+32
+map1:   incbin  'ram:map1.map'
+lenght: dc.l    0
+widht:  dc.w    0
+height: dc.w    0
+MAP2:   blk.b   20000,0

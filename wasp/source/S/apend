@@ -1,5 +1,6 @@
-	incdir	'gam:rambuf/'
+    ; please mount
+    incdir  "gam:rambuf/"
 start:
-	incbin	'enemyair-b.blt'
-	incbin	'enemyair-b2.blt'
+    incbin  "enemyair-b.blt"
+    incbin  "enemyair-b2.blt"
 son:

@@ -1,36 +1,38 @@
-bpnum=4
-widht=6
-height=32
-	section	a,code_c
+bpnum   =   4
+widht   =   6
+height  =   32
+    
+    section a,code_c
 o:
-	lea	mask,a1
-	lea	source,a0
-	move.l	#bobnum-1,d0
+    lea     mask,a1
+    lea     source,a0
+    move.l  #bobnum-1,d0
 .loop:
-	bsr	create_one_mask
-	add.l	#widht*height*4,a0
-	dbra	d0,.loop
-	move.l	a1,d7
-	rts
+    bsr     create_one_mask
+    add.l   #widht*height*4,a0
+    dbra    d0,.loop
+    move.l  a1,d7
+    rts
 
 create_one_mask:
-	move.l	#[widht*height]-1,d2
-	move.l	a0,a2
+    move.l  #[widht*height]-1,d2
+    move.l  a0,a2
 .loop:
-	clr.l	d1
-	ori.b	0(a2),d1
-	ori.b	widht*height*1(a2),d1
-	ori.b	widht*height*2(a2),d1
-	ori.b	widht*height*3(a2),d1
-	MOVE.B	D1,$DFF180
-	move.b	d1,(a1)+
-	add.l	#1,a2
-	dbra	d2,.loop
-	rts
+    clr.l   d1
+    ori.b   0(a2),d1
+    ori.b   widht*height*1(a2),d1
+    ori.b   widht*height*2(a2),d1
+    ori.b   widht*height*3(a2),d1
+    MOVE.B  d1,$DFF180
+    move.b  d1,(a1)+
+    add.l   #1,a2
+    dbra    d2,.loop
+    rts
 source:
-	incdir	'gam:rambuf/'
-	incbin	'enemy1.blt'
-sourcel=*-source
-bobnum=sourcel/[widht*height*bpnum]
+    incdir  "gam:rambuf/"
+    incbin  "enemy1.blt"
+
+sourcel     =   *-source
+bobnum      =   sourcel/[widht*height*bpnum]
 mask:
-	blk.b	sourcel,0
+    blk.b   sourcel,0
